@@ -95,6 +95,41 @@ const db = getFirestore(app);
 // 沿用舊專案資料時，務必與原本的 __app_id 完全相同。
 const appId = import.meta.env.VITE_DATA_NAMESPACE || 'default-app-id';
 
+// Firestore 一個 batch 最多可寫入 500 筆。保留餘裕，避免大型班級匯入時失敗。
+const MAX_BATCH_WRITES = 450;
+
+const normalizeSeatNumber = (value) => {
+  const trimmed = String(value ?? '').trim();
+  return /^\d+$/.test(trimmed) ? String(Number(trimmed)) : trimmed;
+};
+
+const parseBatchStudents = (input) => input
+  .split(/\r?\n/)
+  .map((rawLine, index) => {
+    const line = rawLine.trim();
+    if (!line) return null;
+
+    // 支援「01 王小明」、「01,王小明」、「01. 王小明」與僅輸入姓名。
+    const numbered = line.match(/^(\d+)\s*[,.、，\t ]+(.+)$/);
+    if (numbered) {
+      return { studentNumber: numbered[1], name: numbered[2].trim(), line: index + 1 };
+    }
+    if (/^\d+$/.test(line)) return { studentNumber: '', name: '', line: index + 1 };
+    return { studentNumber: '', name: line, line: index + 1 };
+  })
+  .filter(Boolean);
+
+// Apps Script Web App 的 no-cors 回應不可讀取；記錄失敗不得影響 Firestore 正式加扣分。
+const postSheetEvent = (url, payload) => {
+  if (!url) return;
+  fetch(url, {
+    method: 'POST',
+    mode: 'no-cors',
+    headers: { 'Content-Type': 'text/plain;charset=UTF-8' },
+    body: JSON.stringify(payload)
+  }).catch((error) => console.error('Google 試算表記錄請求失敗', error));
+};
+
 // 儲存空間可能在無痕瀏覽、瀏覽器限制或 iframe 中不可用；不可因此讓畫面崩潰。
 const readLocal = (key) => {
   try { return typeof window !== 'undefined' ? window.localStorage.getItem(key) || '' : ''; }
@@ -793,6 +828,32 @@ function Dashboard({ user, teacherId, onLogout }) {
     () => classes.find(c => c.id === selectedClassId), [classes, selectedClassId]
   );
 
+  const sendScoreLog = useCallback((records) => {
+    if (!backupUrl || !selectedClassId || !selectedClass) return;
+    postSheetEvent(backupUrl.trim(), {
+      action: 'score_log',
+      occurredAt: new Date().toISOString(),
+      teacherId,
+      teacherEmail,
+      classId: selectedClassId,
+      className: selectedClass.name || '未命名班級',
+      records
+    });
+  }, [backupUrl, selectedClass, selectedClassId, teacherEmail, teacherId]);
+
+  const handleClassCreated = useCallback((newClass) => {
+    if (!backupUrl) return;
+    postSheetEvent(backupUrl.trim(), {
+      action: 'class_created',
+      occurredAt: new Date().toISOString(),
+      teacherId,
+      teacherEmail,
+      classId: newClass.id,
+      className: newClass.name,
+      classCode: newClass.classCode
+    });
+  }, [backupUrl, teacherEmail, teacherId]);
+
   // 備份與瀏覽器恢復時一律使用最新班級、學生、信箱及網址，防止舊閉包資料錯置。
   const backupStateRef = useRef(null);
   backupStateRef.current = {
@@ -1146,63 +1207,68 @@ function Dashboard({ user, teacherId, onLogout }) {
   const handleBatchAddStudent = async (e) => {
     e.preventDefault();
     if (!batchInput.trim() || !selectedClassId) return;
-    const lines = batchInput.split('\n').filter(line => line.trim());
+    const parsedRows = parseBatchStudents(batchInput);
+    const validRows = parsedRows.filter(row => row.name);
+    const invalidLines = parsedRows.filter(row => !row.name).map(row => row.line);
+    if (validRows.length === 0) {
+      notify('請每行輸入「座號 姓名」或僅輸入姓名', 'error');
+      return;
+    }
+
+    let createdCount = 0;
     try {
-      const batch = writeBatch(db);
-      let count = 0;
-      lines.forEach(line => {
-        const parts = line.trim().split(/[\s,]+/); 
-        let name = '', num = '';
-        const numIndex = parts.findIndex(p => /^\d+$/.test(p));
-        if (numIndex !== -1) {
-          num = parts[numIndex];
-          const nameParts = parts.filter((_, idx) => idx !== numIndex);
-          name = nameParts.join(' '); 
-        } else {
-          const match = line.match(/^(\d+)[\.\s]+(.+)$/);
-          if (match) { num = match[1]; name = match[2].trim(); } 
-          else { name = line.trim(); }
-        }
-        if (name) {
+      // 大量名單拆成多個可安全提交的 batch，避免 500 筆上限造成整批失敗。
+      for (let start = 0; start < validRows.length; start += MAX_BATCH_WRITES) {
+        const batch = writeBatch(db);
+        const chunk = validRows.slice(start, start + MAX_BATCH_WRITES);
+        chunk.forEach(({ name, studentNumber }) => {
           const newRef = doc(collection(db, 'artifacts', appId, 'public', 'data', 'student_points'));
           batch.set(newRef, {
-            name: name,
-            studentNumber: num,
+            name,
+            studentNumber,
             points: 0,
             classId: selectedClassId,
             createdAt: serverTimestamp(),
             lastReason: '新建立'
           });
-          count++;
-        }
-      });
-      await batch.commit();
+        });
+        await batch.commit();
+        createdCount += chunk.length;
+      }
       setBatchInput('');
       setShowAddModal(false);
       setAddTab('single');
-      notify(`成功建立 ${count} 位學生！`);
+      const skippedMessage = invalidLines.length ? `；略過第 ${invalidLines.join('、')} 行（只有座號，缺少姓名）` : '';
+      notify(`成功建立 ${createdCount} 位學生！${skippedMessage}`);
     } catch (err) { 
       console.error(err); 
-      notify('批次建立發生錯誤', 'error'); 
+      notify(createdCount
+        ? `已建立 ${createdCount} 位，後續匯入失敗；請修正資料後重新貼上未完成的部分`
+        : '批次建立失敗，請檢查網路或 Firestore 存取權限', 'error');
     }
   };
 
-  const updatePoints = useCallback(async (studentId, change, reason) => {
+  const updatePoints = useCallback(async (student, change, reason) => {
     try {
-      const studentRef = doc(db, 'artifacts', appId, 'public', 'data', 'student_points', studentId);
+      const finalReason = reason || (change > 0 ? '加分' : '扣分');
+      const studentRef = doc(db, 'artifacts', appId, 'public', 'data', 'student_points', student.id);
       await updateDoc(studentRef, {
         // 原版使用舊畫面的 points + change，連續點擊或多人操作可能覆蓋分數。
         points: increment(change),
-        lastReason: reason || (change > 0 ? '加分' : '扣分'),
+        lastReason: finalReason,
         lastUpdate: serverTimestamp()
       });
+      sendScoreLog([{
+        type: '學生加扣分', studentId: student.id, studentNumber: student.studentNumber || '',
+        studentName: student.name, change, reason: finalReason, groupId: student.groupId ?? ''
+      }]);
       return true;
     } catch (err) {
       console.error(err);
       notify('更新分數失敗', 'error');
       return false;
     }
-  }, [notify]);
+  }, [notify, sendScoreLog]);
 
   const handleBatchPointsUpdate = async (points, reason) => {
     if (students.length === 0) return;
@@ -1243,22 +1309,34 @@ function Dashboard({ user, teacherId, onLogout }) {
   }, [askConfirm, notify]);
 
   // --- 小組分組與小組連動加扣分邏輯 ---
-  const handleAssignGroup = async (studentNum, groupId) => {
-    const cleanNum = studentNum.trim();
-    const targetStudent = students.find(
-      s => s.studentNumber === cleanNum || (cleanNum !== '' && !isNaN(cleanNum) && parseInt(s.studentNumber) === parseInt(cleanNum))
-    );
-    if (targetStudent) {
-      try {
-        const studentRef = doc(db, 'artifacts', appId, 'public', 'data', 'student_points', targetStudent.id);
-        await updateDoc(studentRef, { groupId: groupId });
-        notify(`已將 ${targetStudent.name} 加入第 ${groupId} 組`);
-      } catch (err) {
-        console.error(err);
-        notify('分組失敗', 'error');
+  const handleAssignGroup = async (seatInput: string, groupId: number) => {
+    const requestedNumbers: string[] = [...new Set<string>(seatInput
+      .split(/[，,、\s]+/)
+      .map(normalizeSeatNumber)
+      .filter((number): number is string => Boolean(number)))];
+    if (!requestedNumbers.length) return;
+
+    const foundBySeat = new Map(students.map(student => [normalizeSeatNumber(student.studentNumber), student]));
+    const matchedStudents = requestedNumbers.map(number => foundBySeat.get(number)).filter(Boolean);
+    const missingNumbers = requestedNumbers.filter(number => !foundBySeat.has(number));
+    if (!matchedStudents.length) {
+      notify(`找不到座號：${missingNumbers.join('、')}`, 'error');
+      return;
+    }
+
+    try {
+      for (let start = 0; start < matchedStudents.length; start += MAX_BATCH_WRITES) {
+        const batch = writeBatch(db);
+        matchedStudents.slice(start, start + MAX_BATCH_WRITES).forEach(student => {
+          batch.update(doc(db, 'artifacts', appId, 'public', 'data', 'student_points', student.id), { groupId });
+        });
+        await batch.commit();
       }
-    } else {
-      notify(`找不到座號為「${cleanNum}」的學生`, 'error');
+      const missingMessage = missingNumbers.length ? `；找不到座號：${missingNumbers.join('、')}` : '';
+      notify(`已將 ${matchedStudents.length} 位學生加入第 ${groupId} 組${missingMessage}`);
+    } catch (err) {
+      console.error(err);
+      notify('批次分組失敗，請檢查網路或 Firestore 存取權限', 'error');
     }
   };
 
@@ -1288,6 +1366,11 @@ function Dashboard({ user, teacherId, onLogout }) {
         });
       });
       await batch.commit();
+      const finalReason = reason || (amount > 0 ? `第${groupId}組加分` : `第${groupId}組扣分`);
+      sendScoreLog(groupMembers.map(student => ({
+        type: '小組加扣分', studentId: student.id, studentNumber: student.studentNumber || '',
+        studentName: student.name, change: amount, reason: finalReason, groupId
+      })));
       notify(`第 ${groupId} 組全員 ${amount > 0 ? `+${amount}` : amount} 分！`);
     } catch (err) {
       console.error(err);
@@ -1499,6 +1582,7 @@ function Dashboard({ user, teacherId, onLogout }) {
         <CreateClassModal 
           onClose={() => setShowCreateClassModal(false)}
           teacherId={teacherId}
+          onCreated={handleClassCreated}
         />
       )}
 
@@ -1761,7 +1845,7 @@ function GroupView({ students, totalGroups, onAssignGroup, onRemoveFromGroup, on
                     type="text" 
                     value={inputMap[groupId] || ''}
                     onChange={(e) => handleSeatInput(groupId, e)}
-                    placeholder="輸入座號加入此組..." 
+                    placeholder="輸入座號（可用逗號分隔）"
                     className="flex-1 px-2.5 py-1 text-sm border rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none"
                   />
                   <button type="submit" className="text-indigo-600 hover:text-indigo-800 p-1" title="加入成員">
@@ -1773,7 +1857,7 @@ function GroupView({ students, totalGroups, onAssignGroup, onRemoveFromGroup, on
               {/* 組員名單 */}
               <div className="flex-1 overflow-y-auto p-2 custom-scrollbar">
                 {members.length === 0 ? (
-                  <p className="text-center text-slate-400 text-xs mt-6">尚無成員，請在上方輸入座號</p>
+                  <p className="text-center text-slate-400 text-xs mt-6">尚無成員，可輸入 1,2,3 批次加入</p>
                 ) : (
                   <div className="space-y-1">
                     {members.map(m => (
@@ -1844,7 +1928,7 @@ function GroupView({ students, totalGroups, onAssignGroup, onRemoveFromGroup, on
 }
 
 // --- 建立新班級視窗 ---
-function CreateClassModal({ onClose, teacherId }) {
+function CreateClassModal({ onClose, teacherId, onCreated }) {
   const { notify } = useUI();
   const [name, setName] = useState('');
   const [classCode, setClassCode] = useState('');
@@ -1876,6 +1960,7 @@ function CreateClassModal({ onClose, teacherId }) {
         });
         tx.set(codeRef, { classId: classRef.id, teacherId, createdAt: serverTimestamp() });
       });
+      onCreated?.({ id: classRef.id, name: name.trim(), classCode: finalCode });
       notify(`已建立班級：${name.trim()}`);
       onClose();
     } catch (err) {
@@ -2484,7 +2569,7 @@ function SettingsModal({ onClose, classId, teacherUid, currentEmail, currentBack
 // --- 學生個人點數操作卡片 (上 1/3 資訊區，下 2/3 快速加扣分按鈕區) ---
 type StudentCardProps = {
   student: any;
-  onUpdatePoints: (studentId: string, change: number, reason?: string) => Promise<boolean>;
+  onUpdatePoints: (student: any, change: number, reason?: string) => Promise<boolean>;
   onDelete: (studentId: string, studentName: string) => void;
   presets: any[];
 };
@@ -2504,7 +2589,7 @@ const StudentCard = React.memo(function StudentCard({ student, onUpdatePoints, o
       else finalReason = "手動調整";
     }
     try {
-      return await onUpdatePoints(student.id, amount, finalReason);
+      return await onUpdatePoints(student, amount, finalReason);
     } finally {
       setIsUpdating(false);
     }
