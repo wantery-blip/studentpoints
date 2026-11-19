@@ -78,15 +78,19 @@ service cloud.firestore {
           request.resource.data.name is string &&
           request.resource.data.totalGroups is int &&
           request.resource.data.totalGroups >= 1 && request.resource.data.totalGroups <= 20 &&
+          (!request.resource.data.keys().hasAny(['groupPointDivisor']) ||
+            (request.resource.data.groupPointDivisor is number && request.resource.data.groupPointDivisor > 0 && request.resource.data.groupPointDivisor <= 100)) &&
           getAfter(codePath(request.resource.data.classCode)).data.classId == classId;
         allow update: if isOwner(resource.data.teacherId) &&
           request.resource.data.teacherId == resource.data.teacherId &&
-          request.resource.data.diff(resource.data).affectedKeys().hasOnly(['name','classCode','totalGroups']) &&
+          request.resource.data.diff(resource.data).affectedKeys().hasOnly(['name','classCode','totalGroups','groupPointDivisor']) &&
           request.resource.data.name is string &&
           validCode(request.resource.data.classCode) &&
           request.resource.data.totalGroups >= 1 && request.resource.data.totalGroups <= 20 &&
+          (!request.resource.data.keys().hasAny(['groupPointDivisor']) ||
+            (request.resource.data.groupPointDivisor is number && request.resource.data.groupPointDivisor > 0 && request.resource.data.groupPointDivisor <= 100)) &&
           getAfter(codePath(request.resource.data.classCode)).data.classId == classId;
-        allow delete: if false; // 原版沒有刪除班級功能；避免意外移除學生名單。
+        allow delete: if isOwner(resource.data.teacherId);
       }
 
       // 代碼索引：只允許按完整代碼 get，不允許列出所有班級代碼。
@@ -100,8 +104,9 @@ service cloud.firestore {
           getAfter(classPath(request.resource.data.classId)).data.classCode == code;
         allow update: if false;
         allow delete: if isOwner(resource.data.teacherId) &&
-          getAfter(classPath(resource.data.classId)).data.teacherId == teacherId() &&
-          getAfter(classPath(resource.data.classId)).data.classCode != code;
+          (!existsAfter(classPath(resource.data.classId)) ||
+            (getAfter(classPath(resource.data.classId)).data.teacherId == teacherId() &&
+              getAfter(classPath(resource.data.classId)).data.classCode != code));
       }
 
       // 授權單：學生只可替自己登記，Firestore Rules 會自行核對代碼與班級。
@@ -166,7 +171,23 @@ service cloud.firestore {
           (!request.resource.data.keys().hasAny(['groupId']) || request.resource.data.groupId is int ||
             request.resource.data.groupId == null) &&
           request.resource.data.createdAt == request.time;
-        allow update, delete: if false;
+        allow update: if false;
+        allow delete: if ownsClass(resource.data.classId);
+      }
+
+      // 小組分數獨立保存；個人總積分由「個人分數 + 小組分數 ÷ 該班 N」即時計算。
+      match /group_points/{groupPointId} {
+        allow get, list: if canReadClass(resource.data.classId);
+        allow create: if ownsClass(request.resource.data.classId) &&
+          request.resource.data.keys().hasOnly(['classId','groupId','points','updatedAt']) &&
+          request.resource.data.classId is string && request.resource.data.groupId is int &&
+          request.resource.data.points is number;
+        allow update: if ownsClass(resource.data.classId) &&
+          request.resource.data.classId == resource.data.classId &&
+          request.resource.data.groupId == resource.data.groupId &&
+          request.resource.data.diff(resource.data).affectedKeys().hasOnly(['points','updatedAt']) &&
+          request.resource.data.points is number;
+        allow delete: if ownsClass(resource.data.classId);
       }
 
       // 個人化加扣分選單：原版 classId 欄位用來儲存教師 ID。
@@ -174,9 +195,12 @@ service cloud.firestore {
         allow get, list: if isOwner(resource.data.classId);
         allow create: if isOwner(request.resource.data.classId) &&
           request.resource.data.keys().hasAll(['label','value','classId']) &&
-          request.resource.data.label is string && request.resource.data.value is int;
+          request.resource.data.label is string && request.resource.data.value is int &&
+          (!request.resource.data.keys().hasAny(['isRedemption']) || request.resource.data.isRedemption is bool);
         allow update: if isOwner(resource.data.classId) &&
-          request.resource.data.classId == resource.data.classId;
+          request.resource.data.classId == resource.data.classId &&
+          request.resource.data.label is string && request.resource.data.value is int &&
+          (!request.resource.data.keys().hasAny(['isRedemption']) || request.resource.data.isRedemption is bool);
         allow delete: if isOwner(resource.data.classId);
       }
     }

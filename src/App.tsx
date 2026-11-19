@@ -110,6 +110,16 @@ const resolveActionPresets = (storedPresets) => {
   return [...defaults, ...storedPresets.filter(preset => !preset.presetKey)];
 };
 
+const groupContribution = (student, groupPoints, divisor) => {
+  if (student.groupId == null) return 0;
+  return Number(groupPoints[student.groupId] || 0) / (Number(divisor) || 1);
+};
+
+const totalPointsFor = (student, groupPoints = {}, divisor = 1) =>
+  Number(student.points || 0) + groupContribution(student, groupPoints, divisor);
+
+const formatPoints = (value) => Number.isInteger(value) ? String(value) : Number(value).toFixed(2).replace(/\.00$/, '');
+
 const normalizeSeatNumber = (value) => {
   const trimmed = String(value ?? '').trim();
   return /^\d+$/.test(trimmed) ? String(Number(trimmed)) : trimmed;
@@ -504,6 +514,7 @@ function StudentLogin({ onJoin, onBack }) {
 // --- 學生唯讀查分儀表板 ---
 function StudentDashboard({ classId, onBack }) {
   const [students, setStudents] = useState([]);
+  const [groupPoints, setGroupPoints] = useState({});
   const [classInfo, setClassInfo] = useState(null);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState('');
@@ -518,6 +529,25 @@ function StudentDashboard({ classId, onBack }) {
     }, (err) => { console.error('班級讀取失敗', err); setLoadError('沒有此班級的讀取權限，請返回輸入班級代碼。'); });
     return () => unsubscribe();
   }, [classId]);
+
+  useEffect(() => {
+    if (!classId) return;
+    const groupQuery = query(
+      collection(db, 'artifacts', appId, 'public', 'data', 'group_points'),
+      where('classId', '==', classId)
+    );
+    return onSnapshot(groupQuery, snapshot => {
+      const next = {};
+      snapshot.docs.forEach(item => { next[item.data().groupId] = Number(item.data().points || 0); });
+      setGroupPoints(next);
+    }, err => console.error('小組分數讀取失敗', err));
+  }, [classId]);
+
+  const pointDivisor = Number(classInfo?.groupPointDivisor) || 1;
+  const displayedStudents = useMemo(() => students.map(student => ({
+    ...student,
+    totalPoints: totalPointsFor(student, groupPoints, pointDivisor)
+  })), [students, groupPoints, pointDivisor]);
 
   // 即時監聽該班級學生點數
   useEffect(() => {
@@ -543,8 +573,8 @@ function StudentDashboard({ classId, onBack }) {
 
   // 計算積分最高的前 8 名學生
   const topStudents = useMemo(() => {
-    return [...students].sort((a, b) => b.points - a.points).slice(0, 8);
-  }, [students]);
+    return [...displayedStudents].sort((a, b) => b.totalPoints - a.totalPoints).slice(0, 8);
+  }, [displayedStudents]);
 
   if (loadError) {
     return <div className="min-h-screen flex flex-col gap-3 items-center justify-center p-6 text-red-600">
@@ -609,8 +639,8 @@ function StudentDashboard({ classId, onBack }) {
                 <div className="mt-3 mb-0.5 font-bold text-slate-800 truncate w-full text-xs px-0.5">
                   {s.name}
                 </div>
-                <div className={`text-base font-black leading-none ${s.points >= 0 ? 'text-indigo-600' : 'text-red-500'}`}>
-                  {s.points}
+                <div className={`text-base font-black leading-none ${s.totalPoints >= 0 ? 'text-indigo-600' : 'text-red-500'}`}>
+                  {formatPoints(s.totalPoints)}
                 </div>
               </div>
             ))}
@@ -636,12 +666,12 @@ function StudentDashboard({ classId, onBack }) {
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
-                {students.map((s) => (
+                {displayedStudents.map((s) => (
                   <tr key={s.id} className="hover:bg-slate-50 transition">
                     <td className="px-4 py-3 font-mono text-slate-500">{s.studentNumber || '-'}</td>
                     <td className="px-4 py-3 font-medium text-slate-900">{s.name}</td>
-                    <td className={`px-4 py-3 text-right font-bold text-lg ${s.points < 0 ? 'text-red-500' : 'text-indigo-600'}`}>
-                      {s.points}
+                    <td className={`px-4 py-3 text-right font-bold text-lg ${s.totalPoints < 0 ? 'text-red-500' : 'text-indigo-600'}`}>
+                      {formatPoints(s.totalPoints)}
                     </td>
                     <td className="px-4 py-3 text-right text-slate-400 text-xs hidden sm:table-cell">
                       {s.lastReason || '-'}
@@ -812,6 +842,7 @@ function Dashboard({ user, teacherId, onLogout }) {
   const [classes, setClasses] = useState([]);
   const [selectedClassId, setSelectedClassId] = useState(() => readLocal(`last_selected_class_${teacherId}`));
   const [students, setStudents] = useState([]);
+  const [groupPoints, setGroupPoints] = useState({});
   const [presets, setPresets] = useState([]);
   const [loading, setLoading] = useState(true);
   const [teacherEmail, setTeacherEmail] = useState('');
@@ -946,6 +977,22 @@ function Dashboard({ user, teacherId, onLogout }) {
     return () => unsubscribe();
   }, [user, selectedClassId, notify]);
 
+  useEffect(() => {
+    if (!user || !selectedClassId) { setGroupPoints({}); return; }
+    const groupQuery = query(
+      collection(db, 'artifacts', appId, 'public', 'data', 'group_points'),
+      where('classId', '==', selectedClassId)
+    );
+    return onSnapshot(groupQuery, snapshot => {
+      const next = {};
+      snapshot.docs.forEach(item => { next[item.data().groupId] = Number(item.data().points || 0); });
+      setGroupPoints(next);
+    }, err => {
+      console.error('讀取小組分數失敗', err);
+      notify('小組分數載入失敗', 'error');
+    });
+  }, [user, selectedClassId, notify]);
+
   // 4. 讀取教師自訂的獎勵項目 (全班級共用)
   useEffect(() => {
     if (!user || !teacherId) return;
@@ -960,9 +1007,14 @@ function Dashboard({ user, teacherId, onLogout }) {
   }, [user, teacherId]);
 
   // 計算積分最高的前 8 名學生
+  const groupPointDivisor = Number(selectedClass?.groupPointDivisor) || 1;
+  const displayedStudents = useMemo(() => students.map(student => ({
+    ...student,
+    totalPoints: totalPointsFor(student, groupPoints, groupPointDivisor)
+  })), [students, groupPoints, groupPointDivisor]);
   const topStudents = useMemo(() => {
-    return [...students].sort((a, b) => b.points - a.points).slice(0, 8);
-  }, [students]);
+    return [...displayedStudents].sort((a, b) => b.totalPoints - a.totalPoints).slice(0, 8);
+  }, [displayedStudents]);
 
   // 切換班級
   const handleClassChange = (e) => {
@@ -1011,7 +1063,8 @@ function Dashboard({ user, teacherId, onLogout }) {
         id: s.id,
         number: s.studentNumber,
         name: s.name,
-        points: s.points,
+            points: totalPointsFor(s, groupPoints, groupPointDivisor),
+            individualPoints: s.points,
         groupId: s.groupId ?? null,
         lastReason: s.lastReason,
         lastUpdate: s.lastUpdate?.seconds
@@ -1036,7 +1089,7 @@ function Dashboard({ user, teacherId, onLogout }) {
       if (!silent) notify('備份請求失敗，請檢查網路或 Webhook 網址', 'error');
       return false;
     }
-  }, [notify]);
+  }, [notify, groupPoints, groupPointDivisor]);
 
   const checkAndPromptDailyReport = useCallback((automatic = false) => {
     if (students.length === 0) {
@@ -1099,7 +1152,7 @@ function Dashboard({ user, teacherId, onLogout }) {
     const sortedStudents = [...students].sort((a, b) => parseInt(a.studentNumber || 0) - parseInt(b.studentNumber || 0));
     let body = `[學生優良點數日報表] ${selectedClass?.name || ''} - ${todayStr}\n\n--------------------------------\n`;
     sortedStudents.forEach(s => {
-      body += `${s.studentNumber || '無座號'}. ${s.name}： ${s.points} 分 (最新: ${s.lastReason || '無'})\n`;
+      body += `${s.studentNumber || '無座號'}. ${s.name}： ${formatPoints(totalPointsFor(s, groupPoints, groupPointDivisor))} 分 (最新: ${s.lastReason || '無'})\n`;
     });
     body += `--------------------------------\n此郵件由學生優良點數管理系統自動生成。`;
     const subject = encodeURIComponent(`[點數報表] ${selectedClass?.name} ${todayStr}`);
@@ -1402,15 +1455,12 @@ function Dashboard({ user, teacherId, onLogout }) {
     const finalReason = reason || (amount > 0 ? `第${groupId}組加分` : `第${groupId}組扣分`);
     const eventId = doc(collection(db, 'artifacts', appId, 'public', 'data', 'point_history')).id;
     try {
+      await setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'group_points', `${selectedClassId}_${groupId}`), {
+        classId: selectedClassId, groupId, points: increment(amount), updatedAt: serverTimestamp()
+      }, { merge: true });
       for (let start = 0; start < groupMembers.length; start += 225) {
         const batch = writeBatch(db);
         groupMembers.slice(start, start + 225).forEach(s => {
-          const ref = doc(db, 'artifacts', appId, 'public', 'data', 'student_points', s.id);
-          batch.update(ref, {
-            points: increment(amount),
-            lastReason: finalReason,
-            lastUpdate: serverTimestamp()
-          });
           const historyRef = doc(collection(db, 'artifacts', appId, 'public', 'data', 'point_history'));
           batch.set(historyRef, {
             classId: selectedClassId, studentId: s.id, teacherId, change: amount,
@@ -1423,7 +1473,7 @@ function Dashboard({ user, teacherId, onLogout }) {
         type: '小組加扣分', studentId: student.id, studentNumber: student.studentNumber || '',
         studentName: student.name, change: amount, reason: finalReason, groupId
       })));
-      notify(`第 ${groupId} 組全員 ${amount > 0 ? `+${amount}` : amount} 分！`);
+      notify(`第 ${groupId} 組已${amount > 0 ? `+${amount}` : amount} 分；個人總積分會依 N 自動換算。`);
     } catch (err) {
       console.error(err);
       notify('小組加扣分失敗', 'error');
@@ -1588,8 +1638,8 @@ function Dashboard({ user, teacherId, onLogout }) {
                     <div className="mt-3 mb-0.5 font-bold text-slate-800 truncate w-full text-xs px-0.5">
                       {s.name}
                     </div>
-                    <div className={`text-base font-black leading-none ${s.points >= 0 ? 'text-indigo-600' : 'text-red-500'}`}>
-                      {s.points}
+                    <div className={`text-base font-black leading-none ${s.totalPoints >= 0 ? 'text-indigo-600' : 'text-red-500'}`}>
+                      {formatPoints(s.totalPoints)}
                     </div>
                   </div>
                 ))
@@ -1607,7 +1657,7 @@ function Dashboard({ user, teacherId, onLogout }) {
               </div>
             ) : (
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-4">
-                {students.map(student => (
+                {displayedStudents.map(student => (
                   <StudentCard 
                     key={student.id} 
                     student={student} 
@@ -1621,8 +1671,10 @@ function Dashboard({ user, teacherId, onLogout }) {
             )
           ) : (
             <GroupView 
-              students={students} 
+              students={displayedStudents}
               totalGroups={selectedClass?.totalGroups || 6} 
+              groupPoints={groupPoints}
+              pointDivisor={groupPointDivisor}
               presets={actionPresets}
               onAssignGroup={handleAssignGroup}
               onRemoveFromGroup={handleRemoveFromGroup}
@@ -1801,7 +1853,7 @@ function Dashboard({ user, teacherId, onLogout }) {
       {showStatsModal && (
         <StatsModal 
           onClose={() => setShowStatsModal(false)}
-          students={students}
+          students={displayedStudents}
           classId={selectedClass?.name || teacherId}
         />
       )}
@@ -1853,6 +1905,7 @@ function Dashboard({ user, teacherId, onLogout }) {
           currentEmail={teacherEmail}
           currentBackupUrl={backupUrl}
           classes={classes}
+          selectedClassId={selectedClassId}
           onBatchImport={handleBatchImport}
         />
       )}
@@ -2014,7 +2067,7 @@ function GroupActionModal({ groupId, onClose, onConfirm }) {
 }
 
 // --- 小組管理視圖元件 ---
-function GroupView({ students, totalGroups, presets, onAssignGroup, onRemoveFromGroup, onUpdateGroupCount, onGroupPointAction, onShowGroupHistory }) {
+function GroupView({ students, totalGroups, groupPoints, pointDivisor, presets, onAssignGroup, onRemoveFromGroup, onUpdateGroupCount, onGroupPointAction, onShowGroupHistory }) {
   const [groupCountInput, setGroupCountInput] = useState(totalGroups);
   const [inputMap, setInputMap] = useState({}); 
   const [customGroupId, setCustomGroupId] = useState<number | null>(null);
@@ -2077,7 +2130,7 @@ function GroupView({ students, totalGroups, presets, onAssignGroup, onRemoveFrom
               {/* 小組標題 */}
               <div className="p-3 bg-slate-50 border-b border-slate-100 flex justify-between items-center rounded-t-xl">
                 <button type="button" onClick={() => onShowGroupHistory(groupId)} className="font-bold text-slate-700 hover:text-indigo-600 hover:underline focus:outline-none focus:ring-2 focus:ring-indigo-300 rounded" title="查看本組加扣分紀錄">第 {groupId} 組</button>
-                <span className="text-xs bg-indigo-100 text-indigo-700 font-bold px-2 py-0.5 rounded-full">{members.length} 人</span>
+                <div className="flex items-center gap-1.5"><span className="text-xs text-slate-500">小組 {formatPoints(groupPoints[groupId] || 0)} ÷ {formatPoints(pointDivisor)}</span><span className="text-xs bg-indigo-100 text-indigo-700 font-bold px-2 py-0.5 rounded-full">{members.length} 人</span></div>
               </div>
               
               {/* 輸入座號加入組員 */}
@@ -2109,7 +2162,7 @@ function GroupView({ students, totalGroups, presets, onAssignGroup, onRemoveFrom
                           <span className="font-medium text-slate-800">{m.name}</span>
                         </div>
                         <div className="flex items-center gap-2">
-                          <span className={`font-bold ${m.points >= 0 ? 'text-indigo-600' : 'text-red-500'}`}>{m.points}</span>
+                          <span className={`font-bold ${m.totalPoints >= 0 ? 'text-indigo-600' : 'text-red-500'}`}>{formatPoints(m.totalPoints)}</span>
                           <button
                             onClick={() => onRemoveFromGroup(m.id)}
                             className="text-slate-300 hover:text-red-500 opacity-0 group-hover:opacity-100 transition"
@@ -2127,7 +2180,7 @@ function GroupView({ students, totalGroups, presets, onAssignGroup, onRemoveFrom
               {/* 小組連動加扣分：與個人卡片共用預設／自訂獎勵項目。 */}
               <div className="p-2.5 border-t border-slate-100 bg-slate-50 rounded-b-xl">
                 <div className="grid grid-cols-2 gap-2 max-h-24 overflow-y-auto custom-scrollbar">
-                  {presets.map(preset => (
+                  {presets.filter(preset => !preset.isRedemption).map(preset => (
                     <button
                       key={preset.id || preset.presetKey}
                       type="button"
@@ -2186,7 +2239,7 @@ function CreateClassModal({ onClose, teacherId, onCreated }) {
         const existing = await tx.get(codeRef);
         if (existing.exists()) throw new Error('DUPLICATE_CLASS_CODE');
         tx.set(classRef, {
-          name: name.trim(), teacherId, classCode: finalCode, totalGroups: 6,
+          name: name.trim(), teacherId, classCode: finalCode, totalGroups: 6, groupPointDivisor: 1,
           createdAt: serverTimestamp()
         });
         tx.set(codeRef, { classId: classRef.id, teacherId, createdAt: serverTimestamp() });
@@ -2246,10 +2299,11 @@ function CreateClassModal({ onClose, teacherId, onCreated }) {
 
 // --- 分數統計與 CSV 匯出視窗 ---
 function StatsModal({ onClose, students, classId }) {
-  const totalPoints = students.reduce((acc, curr) => acc + curr.points, 0);
+  const scoreOf = (student) => student.totalPoints ?? student.points;
+  const totalPoints = students.reduce((acc, curr) => acc + scoreOf(curr), 0);
   const avgPoints = students.length > 0 ? (totalPoints / students.length).toFixed(1) : 0;
-  const maxPoints = students.length > 0 ? Math.max(...students.map(s => s.points)) : 0;
-  const minPoints = students.length > 0 ? Math.min(...students.map(s => s.points)) : 0;
+  const maxPoints = students.length > 0 ? Math.max(...students.map(scoreOf)) : 0;
+  const minPoints = students.length > 0 ? Math.min(...students.map(scoreOf)) : 0;
 
   const handleExport = () => {
     const BOM = '\uFEFF';
@@ -2260,7 +2314,7 @@ function StatsModal({ onClose, students, classId }) {
     exportData.forEach(s => {
       const dateStr = s.lastUpdate ? new Date(s.lastUpdate.seconds * 1000).toLocaleDateString() : '';
       const safeReason = (s.lastReason || '').replace(/,/g, '，');
-      csvContent += `${s.studentNumber || ''},${s.name},${s.points},${safeReason},${dateStr}\n`;
+      csvContent += `${s.studentNumber || ''},${s.name},${formatPoints(scoreOf(s))},${safeReason},${dateStr}\n`;
     });
 
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
@@ -2319,8 +2373,8 @@ function StatsModal({ onClose, students, classId }) {
                 <tr key={s.id} className="hover:bg-slate-50">
                   <td className="px-4 py-2 font-mono text-slate-500">{s.studentNumber}</td>
                   <td className="px-4 py-2 font-medium text-slate-800">{s.name}</td>
-                  <td className={`px-4 py-2 font-bold ${s.points < 0 ? 'text-red-500' : 'text-indigo-600'}`}>
-                    {s.points}
+                  <td className={`px-4 py-2 font-bold ${scoreOf(s) < 0 ? 'text-red-500' : 'text-indigo-600'}`}>
+                    {formatPoints(scoreOf(s))}
                   </td>
                   <td className="px-4 py-2 text-slate-400 text-xs">
                     {s.lastReason || '-'}
@@ -2387,7 +2441,7 @@ function BatchActionModal({ onClose, onConfirm, presets, studentCount }) {
               <p className="text-sm text-slate-400 italic">尚未設定獎勵項目，請至「獎勵項目設定」新增。</p>
             ) : (
               <div className="flex flex-wrap gap-2">
-                {presets.map(preset => (
+                {presets.filter(preset => !preset.isRedemption).map(preset => (
                   <button
                     key={preset.id}
                     type="button"
@@ -2451,6 +2505,7 @@ function ManagePresetsModal({ onClose, presets, teacherId }) {
   const { notify, askConfirm } = useUI();
   const [label, setLabel] = useState('');
   const [value, setValue] = useState('');
+  const [isRedemption, setIsRedemption] = useState(false);
   const positivePreset = presets.find(preset => preset.presetKey === 'positive') || BUILT_IN_PRESETS[0];
   const negativePreset = presets.find(preset => preset.presetKey === 'negative') || BUILT_IN_PRESETS[1];
   const [defaultValues, setDefaultValues] = useState({
@@ -2490,12 +2545,14 @@ function ManagePresetsModal({ onClose, presets, teacherId }) {
     try {
       await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'reward_presets'), {
         label: label.trim(),
-        value: parseInt(value),
+        value: isRedemption ? -Math.abs(parseInt(value)) : parseInt(value),
+        isRedemption,
         classId: teacherId, 
         createdAt: serverTimestamp()
       });
       setLabel('');
       setValue('');
+      setIsRedemption(false);
       notify('已新增獎勵項目');
     } catch (err) {
       console.error(err);
@@ -2543,7 +2600,8 @@ function ManagePresetsModal({ onClose, presets, teacherId }) {
               ))}
             </div>
           </div>
-          <form onSubmit={handleAdd} className="flex gap-2">
+          <form onSubmit={handleAdd} className="space-y-2">
+            <div className="flex gap-2">
             <input 
               type="text" 
               value={label}
@@ -2556,13 +2614,18 @@ function ManagePresetsModal({ onClose, presets, teacherId }) {
               type="number" 
               value={value}
               onChange={e => setValue(e.target.value)}
-              placeholder="分數" 
+              placeholder={isRedemption ? "扣除點數" : "分數"}
               className="w-20 px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 outline-none"
               required
             />
             <button type="submit" className="bg-indigo-600 text-white p-2 rounded-lg hover:bg-indigo-700" title="新增項目">
               <Plus className="w-5 h-5" />
             </button>
+            </div>
+            <label className="flex items-center gap-2 text-xs text-amber-800 cursor-pointer">
+              <input type="checkbox" checked={isRedemption} onChange={e => setIsRedemption(e.target.checked)} />
+              學生兌獎項目（扣除點數，但不標示為扣分）
+            </label>
           </form>
         </div>
 
@@ -2576,10 +2639,10 @@ function ManagePresetsModal({ onClose, presets, teacherId }) {
             presets.filter(preset => !preset.presetKey).map(p => (
               <div key={p.id} className="flex justify-between items-center bg-white p-3 rounded-lg border shadow-sm">
                 <div className="flex items-center gap-2">
-                  <span className={`font-bold w-10 text-center ${p.value > 0 ? 'text-blue-600' : 'text-red-600'}`}>
-                    {p.value > 0 ? `+${p.value}` : p.value}
+                  <span className={`font-bold w-14 text-center ${p.isRedemption ? 'text-amber-700' : p.value > 0 ? 'text-blue-600' : 'text-red-600'}`}>
+                    {p.isRedemption ? `兌 −${Math.abs(p.value)}` : p.value > 0 ? `+${p.value}` : p.value}
                   </span>
-                  <span className="text-slate-700 font-medium">{p.label}</span>
+                  <span className="text-slate-700 font-medium">{p.label}{p.isRedemption && <span className="ml-1 text-xs text-amber-700">兌獎</span>}</span>
                 </div>
                 <button onClick={() => handleDelete(p.id, p.label)} className="text-slate-400 hover:text-red-500 p-1">
                   <Trash2 className="w-4 h-4" />
@@ -2594,14 +2657,15 @@ function ManagePresetsModal({ onClose, presets, teacherId }) {
 }
 
 // --- 系統設定視窗 (一般 / 班級管理 / 備份與匯入 / 安全) ---
-function SettingsModal({ onClose, classId, teacherUid, currentEmail, currentBackupUrl, classes = [], onBatchImport }) {
-  const { notify } = useUI();
+function SettingsModal({ onClose, classId, teacherUid, currentEmail, currentBackupUrl, classes = [], selectedClassId, onBatchImport }) {
+  const { notify, askConfirm } = useUI();
   const [activeTab, setActiveTab] = useState('general'); 
   const [email, setEmail] = useState(currentEmail || '');
   const [backupUrl, setBackupUrl] = useState(currentBackupUrl || '');
   const [editingClassId, setEditingClassId] = useState(null);
   const [editingClassName, setEditingClassName] = useState('');
   const [editingClassCode, setEditingClassCode] = useState('');
+  const [editingGroupPointDivisor, setEditingGroupPointDivisor] = useState('1');
   const [oldPassword, setOldPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -2661,8 +2725,9 @@ function SettingsModal({ onClose, classId, teacherUid, currentEmail, currentBack
   const handleUpdateClassInfo = async (id) => {
     const name = editingClassName.trim();
     const nextCode = editingClassCode.trim().toUpperCase();
-    if (!name || !/^[A-Z0-9_-]{4,32}$/.test(nextCode)) {
-      notify('請填寫名稱與 4–32 位合法班級代碼', 'error'); return;
+    const groupPointDivisor = Number(editingGroupPointDivisor);
+    if (!name || !/^[A-Z0-9_-]{4,32}$/.test(nextCode) || !Number.isFinite(groupPointDivisor) || groupPointDivisor <= 0 || groupPointDivisor > 100) {
+      notify('請填寫名稱、4–32 位合法班級代碼，N 須介於 0 到 100', 'error'); return;
     }
     try {
       const classRef = doc(db, 'artifacts', appId, 'public', 'data', 'classes', id);
@@ -2680,7 +2745,7 @@ function SettingsModal({ onClose, classId, teacherUid, currentEmail, currentBack
             tx.delete(oldRef);
           }
         }
-        tx.update(classRef, { name, classCode: nextCode });
+        tx.update(classRef, { name, classCode: nextCode, groupPointDivisor });
       });
       setEditingClassId(null);
       notify('班級資訊已更新');
@@ -2688,6 +2753,37 @@ function SettingsModal({ onClose, classId, teacherUid, currentEmail, currentBack
       console.error(err);
       notify(err.message === 'DUPLICATE_CLASS_CODE' ? '代碼已被其他班級使用' : '修改失敗', 'error');
     }
+  };
+
+  const handleDeleteClass = (classItem) => {
+    askConfirm(
+      '刪除班級資料確認',
+      `確定刪除「${classItem.name}」的 Firebase 班級、小組、學生與點數歷程嗎？此動作無法復原。Google 試算表既有分頁不會被刪除。`,
+      async () => {
+        try {
+          const base = ['student_points', 'point_history', 'group_points'];
+          for (const collectionName of base) {
+            const snapshot = await getDocs(query(collection(db, 'artifacts', appId, 'public', 'data', collectionName), where('classId', '==', classItem.id)));
+            const docs = snapshot.docs;
+            for (let start = 0; start < docs.length; start += MAX_BATCH_WRITES) {
+              const batch = writeBatch(db);
+              docs.slice(start, start + MAX_BATCH_WRITES).forEach(item => batch.delete(item.ref));
+              await batch.commit();
+            }
+          }
+          const batch = writeBatch(db);
+          if (classItem.classCode) batch.delete(doc(db, 'artifacts', appId, 'public', 'data', 'class_codes', classItem.classCode));
+          batch.delete(doc(db, 'artifacts', appId, 'public', 'data', 'classes', classItem.id));
+          await batch.commit();
+          if (selectedClassId === classItem.id) removeLocal(`last_selected_class_${classId}`);
+          notify('班級資料已從網站資料庫刪除；Google 試算表分頁已保留。');
+        } catch (err) {
+          console.error(err);
+          notify('刪除班級失敗，請確認已發布最新 Firestore Rules', 'error');
+        }
+      },
+      true
+    );
   };
 
   const copyText = (text) => {
@@ -2764,6 +2860,8 @@ function SettingsModal({ onClose, classId, teacherUid, currentEmail, currentBack
                         <input value={editingClassName} onChange={(e) => setEditingClassName(e.target.value)} className="px-2 py-1 text-sm border rounded bg-white" placeholder="班級名稱"/>
                         <label className="text-xs text-slate-500">班級代碼 (學生查分用)</label>
                         <input value={editingClassCode} onChange={(e) => setEditingClassCode(e.target.value.toUpperCase())} className="px-2 py-1 text-sm border rounded font-mono bg-white uppercase" placeholder="班級代碼"/>
+                        <label className="text-xs text-slate-500">小組積分換算 N（小組分數 ÷ N）</label>
+                        <input type="number" min="0.01" max="100" step="0.01" value={editingGroupPointDivisor} onChange={(e) => setEditingGroupPointDivisor(e.target.value)} className="px-2 py-1 text-sm border rounded bg-white" />
                         <div className="flex justify-end gap-2 mt-1">
                           <button onClick={() => setEditingClassId(null)} className="text-xs text-slate-500 hover:text-slate-700 border bg-white px-2.5 py-1 rounded">取消</button>
                           <button onClick={() => handleUpdateClassInfo(c.id)} className="text-xs bg-emerald-600 text-white px-2.5 py-1 rounded hover:bg-emerald-700 font-bold">儲存</button>
@@ -2783,9 +2881,7 @@ function SettingsModal({ onClose, classId, teacherUid, currentEmail, currentBack
                             </button>
                           </div>
                         </div>
-                        <button onClick={() => { setEditingClassId(c.id); setEditingClassName(c.name); setEditingClassCode(c.classCode || c.id); }} className="text-slate-400 hover:text-indigo-600 p-1" title="編輯班級名稱與代碼">
-                          <Pencil className="w-4 h-4" />
-                        </button>
+                        <div className="flex gap-1"><button onClick={() => { setEditingClassId(c.id); setEditingClassName(c.name); setEditingClassCode(c.classCode || c.id); setEditingGroupPointDivisor(String(c.groupPointDivisor || 1)); }} className="text-slate-400 hover:text-indigo-600 p-1" title="編輯班級名稱、代碼與 N"><Pencil className="w-4 h-4" /></button><button onClick={() => handleDeleteClass(c)} className="text-slate-400 hover:text-red-600 p-1" title="刪除班級資料"><Trash2 className="w-4 h-4" /></button></div>
                       </div>
                     )}
                   </div>
@@ -3005,8 +3101,9 @@ const StudentCard = React.memo(function StudentCard({ student, onUpdatePoints, o
     }
   };
 
-  const scoreColor = student.points >= 0 
-    ? (student.points > 10 ? "text-indigo-600" : "text-slate-800")
+  const score = student.totalPoints ?? student.points;
+  const scoreColor = score >= 0
+    ? (score > 10 ? "text-indigo-600" : "text-slate-800")
     : "text-red-500";
 
   return (
@@ -3051,7 +3148,7 @@ const StudentCard = React.memo(function StudentCard({ student, onUpdatePoints, o
           </div>
         </div>
         <div className={`text-3xl md:text-4xl font-black ${scoreColor} mr-7`}>
-          {student.points}
+          {formatPoints(score)}
         </div>
       </div>
 
@@ -3062,19 +3159,19 @@ const StudentCard = React.memo(function StudentCard({ student, onUpdatePoints, o
           {presets.map(p => (
             <button
               key={p.id}
-              onClick={() => handlePointChange(p.value, p.label)}
+              onClick={() => handlePointChange(p.value, p.isRedemption ? `兌獎：${p.label}` : p.label)}
               disabled={isUpdating}
               className={`flex items-stretch h-12 rounded-lg border overflow-hidden shadow-sm hover:shadow-md transition active:scale-95 group/btn
-                ${p.value > 0 ? 'border-blue-100' : 'border-pink-100'}`}
+                ${p.isRedemption ? 'border-amber-200' : p.value > 0 ? 'border-blue-100' : 'border-pink-100'}`}
             >
               <div className={`w-1/3 flex items-center justify-center font-bold text-lg border-r transition
-                ${p.value > 0 
+                ${p.isRedemption ? 'bg-amber-50 text-amber-700 border-amber-200 group-hover/btn:bg-amber-100' : p.value > 0
                   ? 'bg-blue-50 text-blue-600 border-blue-100 group-hover/btn:bg-blue-100' 
                   : 'bg-pink-50 text-pink-600 border-pink-100 group-hover/btn:bg-pink-100'}`}>
-                {p.value > 0 ? `+${p.value}` : p.value}
+                {p.isRedemption ? `兌 −${Math.abs(p.value)}` : p.value > 0 ? `+${p.value}` : p.value}
               </div>
               <div className={`w-2/3 flex items-center justify-center bg-white text-sm font-medium px-1 text-center leading-tight
-                ${p.value > 0 ? 'text-blue-700' : 'text-pink-700'}`}>
+                ${p.isRedemption ? 'text-amber-800' : p.value > 0 ? 'text-blue-700' : 'text-pink-700'}`}>
                 {p.label}
               </div>
             </button>
