@@ -850,7 +850,8 @@ function Dashboard({ user, teacherId, onLogout }) {
       teacherEmail,
       classId: newClass.id,
       className: newClass.name,
-      classCode: newClass.classCode
+      classCode: newClass.classCode,
+      totalGroups: 6
     });
   }, [backupUrl, teacherEmail, teacherId]);
 
@@ -858,8 +859,12 @@ function Dashboard({ user, teacherId, onLogout }) {
   const backupStateRef = useRef(null);
   backupStateRef.current = {
     students, backupUrl, teacherId, teacherEmail,
-    className: selectedClass?.name || '未命名班級',
-    classCode: selectedClass?.classCode || selectedClassId
+    currentClass: selectedClass ? {
+      id: selectedClass.id,
+      name: selectedClass.name || '未命名班級',
+      classCode: selectedClass.classCode || '',
+      totalGroups: selectedClass.totalGroups || 0
+    } : null
   };
 
   // 1. 讀取教師帳號設定 (信箱、GAS 備份網址)
@@ -968,7 +973,7 @@ function Dashboard({ user, teacherId, onLogout }) {
   // no-cors 的回應無法驗證 GAS 是否真正寫入，僅能確認瀏覽器送出請求。
   const handleCloudUpload = useCallback(async (silent = false) => {
     const { backupUrl: url, students: currentStudents, teacherId: currentTeacherId,
-      teacherEmail: currentEmail, className, classCode } = backupStateRef.current || {};
+      teacherEmail: currentEmail, currentClass } = backupStateRef.current || {};
     if (!url) {
       if (!silent) notify('請先至「設定 → 備份」設定 Webhook 網址', 'error');
       return false;
@@ -978,22 +983,27 @@ function Dashboard({ user, teacherId, onLogout }) {
       return false;
     }
     const payload = {
+      action: 'snapshot',
+      occurredAt: new Date().toISOString(),
       teacherId: currentTeacherId,
       teacherEmail: currentEmail,
-      className,
-      classId: classCode,
-      date: new Date().toISOString(),
+      classId: currentClass?.id,
+      className: currentClass?.name,
+      classCode: currentClass?.classCode,
+      totalGroups: currentClass?.totalGroups,
       students: currentStudents.map(s => ({
+        id: s.id,
         number: s.studentNumber,
         name: s.name,
         points: s.points,
+        groupId: s.groupId ?? null,
         lastReason: s.lastReason,
         lastUpdate: s.lastUpdate?.seconds
           ? new Date(s.lastUpdate.seconds * 1000).toISOString() : null
       }))
     };
     try {
-      await fetch(url, {
+      await fetch(url.trim(), {
         method: 'POST',
         mode: 'no-cors',
         // 避免在 no-cors 模式傳送未被允許的 application/json header。
@@ -1001,7 +1011,7 @@ function Dashboard({ user, teacherId, onLogout }) {
         body: JSON.stringify(payload)
       });
       if (!silent) {
-        notify('備份請求已送出；請到 Google 試算表確認結果。', 'info');
+        notify('備份上傳請求已送出；請到 Google 試算表確認結果。', 'info');
         setShowDailyPrompt(false);
       }
       return true;
@@ -1449,9 +1459,9 @@ function Dashboard({ user, teacherId, onLogout }) {
                 </button>
               </div>
 
-              <button onClick={() => checkAndPromptDailyReport()} className="flex items-center gap-2 bg-blue-600 text-white px-3 py-2 rounded-lg hover:bg-blue-700 transition shadow-md text-sm font-medium">
+              <button onClick={() => handleCloudUpload(false)} className="flex items-center gap-2 bg-blue-600 text-white px-3 py-2 rounded-lg hover:bg-blue-700 transition shadow-md text-sm font-medium">
                 {backupUrl ? <CloudUpload className="w-4 h-4" /> : <Mail className="w-4 h-4" />}
-                <span className="hidden sm:inline">日報表</span>
+                <span className="hidden sm:inline">備份上傳</span>
               </button>
               <button onClick={() => setShowBatchActionModal(true)} className="flex items-center gap-2 bg-pink-600 text-white px-3 py-2 rounded-lg hover:bg-pink-700 transition shadow-md text-sm font-medium">
                 <Zap className="w-4 h-4" />
