@@ -146,6 +146,28 @@ service cloud.firestore {
         allow delete: if ownsClass(resource.data.classId);
       }
 
+      // 加扣分歷程：只允許所屬教師建立及讀取，學生帳號不可查看或變更行為紀錄。
+      match /point_history/{historyId} {
+        allow get, list: if ownsClass(resource.data.classId);
+        allow create: if ownsClass(request.resource.data.classId) &&
+          isOwner(request.resource.data.teacherId) &&
+          request.resource.data.keys().hasOnly([
+            'classId','studentId','teacherId','change','reason','groupId','type','createdAt'
+          ]) &&
+          request.resource.data.keys().hasAll([
+            'classId','studentId','teacherId','change','reason','type','createdAt'
+          ]) &&
+          request.resource.data.studentId is string &&
+          request.resource.data.teacherId is string &&
+          request.resource.data.change is number &&
+          request.resource.data.reason is string &&
+          request.resource.data.type is string &&
+          (!request.resource.data.keys().hasAny(['groupId']) || request.resource.data.groupId is int ||
+            request.resource.data.groupId == null) &&
+          request.resource.data.createdAt == request.time;
+        allow update, delete: if false;
+      }
+
       // 個人化加扣分選單：原版 classId 欄位用來儲存教師 ID。
       match /reward_presets/{presetId} {
         allow get, list: if isOwner(resource.data.classId);

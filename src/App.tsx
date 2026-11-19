@@ -817,6 +817,7 @@ function Dashboard({ user, teacherId, onLogout }) {
   const [showPresetsModal, setShowPresetsModal] = useState(false);
   const [showStatsModal, setShowStatsModal] = useState(false);
   const [showDailyPrompt, setShowDailyPrompt] = useState(false);
+  const [historyStudent, setHistoryStudent] = useState<any>(null);
   
   // 新增學生表單狀態
   const [addTab, setAddTab] = useState('single');
@@ -1262,12 +1263,18 @@ function Dashboard({ user, teacherId, onLogout }) {
     try {
       const finalReason = reason || (change > 0 ? '加分' : '扣分');
       const studentRef = doc(db, 'artifacts', appId, 'public', 'data', 'student_points', student.id);
-      await updateDoc(studentRef, {
+      const batch = writeBatch(db);
+      batch.update(studentRef, {
         // 原版使用舊畫面的 points + change，連續點擊或多人操作可能覆蓋分數。
         points: increment(change),
         lastReason: finalReason,
         lastUpdate: serverTimestamp()
       });
+      batch.set(doc(collection(db, 'artifacts', appId, 'public', 'data', 'point_history')), {
+        classId: selectedClassId, studentId: student.id, teacherId, change, reason: finalReason,
+        groupId: student.groupId ?? null, type: '學生加扣分', createdAt: serverTimestamp()
+      });
+      await batch.commit();
       sendScoreLog([{
         type: '學生加扣分', studentId: student.id, studentNumber: student.studentNumber || '',
         studentName: student.name, change, reason: finalReason, groupId: student.groupId ?? ''
@@ -1278,21 +1285,30 @@ function Dashboard({ user, teacherId, onLogout }) {
       notify('更新分數失敗', 'error');
       return false;
     }
-  }, [notify, sendScoreLog]);
+  }, [notify, selectedClassId, sendScoreLog, teacherId]);
 
   const handleBatchPointsUpdate = async (points, reason) => {
     if (students.length === 0) return;
+    const finalReason = reason || (points > 0 ? '全班加分' : '全班扣分');
     try {
-      const batch = writeBatch(db);
-      students.forEach(student => {
-        const studentRef = doc(db, 'artifacts', appId, 'public', 'data', 'student_points', student.id);
-        batch.update(studentRef, {
-          points: increment(points),
-          lastReason: reason,
-          lastUpdate: serverTimestamp()
+      // 每位學生會同時更新分數和建立一筆歷程，故每批最多 225 位。
+      for (let start = 0; start < students.length; start += 225) {
+        const batch = writeBatch(db);
+        students.slice(start, start + 225).forEach(student => {
+          const studentRef = doc(db, 'artifacts', appId, 'public', 'data', 'student_points', student.id);
+          batch.update(studentRef, {
+            points: increment(points),
+            lastReason: finalReason,
+            lastUpdate: serverTimestamp()
+          });
+          batch.set(doc(collection(db, 'artifacts', appId, 'public', 'data', 'point_history')), {
+            classId: selectedClassId, studentId: student.id, teacherId, change: points,
+            reason: finalReason, groupId: student.groupId ?? null,
+            type: '全班加扣分', createdAt: serverTimestamp()
+          });
         });
-      });
-      await batch.commit();
+        await batch.commit();
+      }
       setShowBatchActionModal(false);
       notify(`全班已${points > 0 ? `加 ${points}` : `扣 ${Math.abs(points)}`} 分！`);
     } catch (err) { 
@@ -1365,18 +1381,24 @@ function Dashboard({ user, teacherId, onLogout }) {
       notify(`第 ${groupId} 組目前沒有成員`, 'info');
       return;
     }
+    const finalReason = reason || (amount > 0 ? `第${groupId}組加分` : `第${groupId}組扣分`);
     try {
-      const batch = writeBatch(db);
-      groupMembers.forEach(s => {
-        const ref = doc(db, 'artifacts', appId, 'public', 'data', 'student_points', s.id);
-        batch.update(ref, {
-          points: increment(amount),
-          lastReason: reason || (amount > 0 ? `第${groupId}組加分` : `第${groupId}組扣分`),
-          lastUpdate: serverTimestamp()
+      for (let start = 0; start < groupMembers.length; start += 225) {
+        const batch = writeBatch(db);
+        groupMembers.slice(start, start + 225).forEach(s => {
+          const ref = doc(db, 'artifacts', appId, 'public', 'data', 'student_points', s.id);
+          batch.update(ref, {
+            points: increment(amount),
+            lastReason: finalReason,
+            lastUpdate: serverTimestamp()
+          });
+          batch.set(doc(collection(db, 'artifacts', appId, 'public', 'data', 'point_history')), {
+            classId: selectedClassId, studentId: s.id, teacherId, change: amount,
+            reason: finalReason, groupId, type: '小組加扣分', createdAt: serverTimestamp()
+          });
         });
-      });
-      await batch.commit();
-      const finalReason = reason || (amount > 0 ? `第${groupId}組加分` : `第${groupId}組扣分`);
+        await batch.commit();
+      }
       sendScoreLog(groupMembers.map(student => ({
         type: '小組加扣分', studentId: student.id, studentNumber: student.studentNumber || '',
         studentName: student.name, change: amount, reason: finalReason, groupId
@@ -1568,6 +1590,7 @@ function Dashboard({ user, teacherId, onLogout }) {
                     presets={presets}
                     onUpdatePoints={updatePoints}
                     onDelete={deleteStudent}
+                    onShowHistory={setHistoryStudent}
                   />
                 ))}
               </div>
@@ -1754,6 +1777,14 @@ function Dashboard({ user, teacherId, onLogout }) {
           onClose={() => setShowStatsModal(false)}
           students={students}
           classId={selectedClass?.name || teacherId}
+        />
+      )}
+
+      {historyStudent && (
+        <StudentHistoryModal
+          student={historyStudent}
+          classId={selectedClassId}
+          onClose={() => setHistoryStudent(null)}
         />
       )}
 
@@ -2576,15 +2607,85 @@ function SettingsModal({ onClose, classId, teacherUid, currentEmail, currentBack
   );
 }
 
+// --- 學生個人加扣分歷程 ---
+function StudentHistoryModal({ student, classId, onClose }) {
+  const [entries, setEntries] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+
+  useEffect(() => {
+    if (!student?.id || !classId) return undefined;
+    const historyQuery = query(
+      collection(db, 'artifacts', appId, 'public', 'data', 'point_history'),
+      where('classId', '==', classId),
+      where('studentId', '==', student.id)
+    );
+    const unsubscribe = onSnapshot(historyQuery, (snapshot) => {
+      const rows = snapshot.docs
+        .map(item => ({ id: item.id, ...item.data() } as any))
+        .sort((a, b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0));
+      setEntries(rows);
+      setLoading(false);
+    }, (snapshotError) => {
+      console.error('讀取學生歷程失敗', snapshotError);
+      setError('無法取得加扣分紀錄，請檢查網路或 Firestore 權限。');
+      setLoading(false);
+    });
+    return () => unsubscribe();
+  }, [classId, student?.id]);
+
+  const formatTime = (timestamp) => timestamp?.seconds
+    ? new Date(timestamp.seconds * 1000).toLocaleString('zh-TW', { hour12: false })
+    : '剛剛';
+
+  return (
+    <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4 backdrop-blur-sm">
+      <div className="bg-white rounded-xl shadow-2xl w-full max-w-md max-h-[80vh] overflow-hidden animate-fade-in-up">
+        <div className="bg-indigo-600 p-4 flex items-center justify-between">
+          <div>
+            <h3 className="text-white font-bold flex items-center gap-2"><History className="w-5 h-5" /> {student.name} 的加扣分紀錄</h3>
+            <p className="text-indigo-100 text-xs mt-1">座號 {student.studentNumber || '未設定'}</p>
+          </div>
+          <button type="button" onClick={onClose} className="text-white/80 hover:text-white p-1" aria-label="關閉紀錄"><X className="w-5 h-5" /></button>
+        </div>
+        <div className="overflow-y-auto max-h-[60vh] p-4">
+          {loading ? (
+            <div className="py-10 text-center text-slate-400"><Loader2 className="w-6 h-6 animate-spin mx-auto mb-2" />載入紀錄中...</div>
+          ) : error ? (
+            <p className="p-3 text-sm text-red-600 bg-red-50 rounded-lg">{error}</p>
+          ) : entries.length === 0 ? (
+            <p className="py-10 text-center text-slate-400 text-sm">目前尚無可查詢的加扣分紀錄</p>
+          ) : (
+            <div className="space-y-2">
+              {entries.map(entry => (
+                <div key={entry.id} className="border border-slate-100 rounded-lg p-3 flex items-center gap-3">
+                  <span className={`shrink-0 font-black text-lg ${entry.change >= 0 ? 'text-indigo-600' : 'text-red-500'}`}>
+                    {entry.change > 0 ? `+${entry.change}` : entry.change}
+                  </span>
+                  <div className="min-w-0 flex-1">
+                    <p className="text-sm font-medium text-slate-700 truncate">{entry.reason || '未填寫原因'}</p>
+                    <p className="text-xs text-slate-400 mt-1">{formatTime(entry.createdAt)}{entry.type ? ` · ${entry.type}` : ''}</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // --- 學生個人點數操作卡片 (上 1/3 資訊區，下 2/3 快速加扣分按鈕區) ---
 type StudentCardProps = {
   student: any;
   onUpdatePoints: (student: any, change: number, reason?: string) => Promise<boolean>;
   onDelete: (studentId: string, studentName: string) => void;
+  onShowHistory: (student: any) => void;
   presets: any[];
 };
 
-const StudentCard = React.memo(function StudentCard({ student, onUpdatePoints, onDelete, presets }: StudentCardProps) {
+const StudentCard = React.memo(function StudentCard({ student, onUpdatePoints, onDelete, onShowHistory, presets }: StudentCardProps) {
   const [isUpdating, setIsUpdating] = useState(false);
   const [showCustom, setShowCustom] = useState(false);
   const [customPoints, setCustomPoints] = useState('');
@@ -2649,9 +2750,14 @@ const StudentCard = React.memo(function StudentCard({ student, onUpdatePoints, o
             {student.studentNumber || "#"}
           </div>
           <div className="overflow-hidden">
-            <h3 className="font-bold text-slate-800 text-base md:text-lg truncate max-w-[90px]" title={student.name}>
+            <button
+              type="button"
+              onClick={() => onShowHistory(student)}
+              className="font-bold text-slate-800 text-base md:text-lg truncate max-w-[90px] text-left hover:text-indigo-600 hover:underline focus:outline-none focus:ring-2 focus:ring-indigo-300 rounded"
+              title="查看加扣分紀錄"
+            >
               {student.name}
-            </h3>
+            </button>
             <p className="text-xs text-slate-400 flex items-center gap-1 truncate max-w-[90px]">
               <History className="w-3 h-3 flex-shrink-0" /> {student.lastReason || '無紀錄'}
             </p>
