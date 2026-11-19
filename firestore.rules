@@ -1,0 +1,157 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // 所有資料均保存在原本的 artifacts/<namespace>/public/data 路徑。
+    match /artifacts/{namespace}/public/data {
+      function signedIn() { return request.auth != null; }
+      function emailUser() {
+        return signedIn() && request.auth.token.email is string &&
+          request.auth.token.firebase.sign_in_provider == 'password';
+      }
+      function teacherPath() {
+        return /databases/$(database)/documents/artifacts/$(namespace)/public/data/teachers/$(request.auth.uid);
+      }
+      function isTeacher() { return signedIn() && exists(teacherPath()); }
+      function teacherId() { return get(teacherPath()).data.teacherId; }
+      function isOwner(ownerId) { return isTeacher() && teacherId() == ownerId; }
+      function classPath(classId) {
+        return /databases/$(database)/documents/artifacts/$(namespace)/public/data/classes/$(classId);
+      }
+      function codePath(code) {
+        return /databases/$(database)/documents/artifacts/$(namespace)/public/data/class_codes/$(code);
+      }
+      function grantPath(classId) {
+        return /databases/$(database)/documents/artifacts/$(namespace)/public/data/class_access/$(request.auth.uid + '_' + classId);
+      }
+      function validCode(code) {
+        return code is string && code.matches('^[A-Z0-9_-]{4,32}$');
+      }
+      function ownsClass(classId) {
+        return signedIn() && exists(classPath(classId)) &&
+          isOwner(get(classPath(classId)).data.teacherId);
+      }
+      function studentCanRead(classId) {
+        return signedIn() &&
+          exists(grantPath(classId)) &&
+          get(grantPath(classId)).data.uid == request.auth.uid &&
+          get(grantPath(classId)).data.classId == classId &&
+          get(grantPath(classId)).data.code == get(classPath(classId)).data.classCode;
+      }
+      function canReadClass(classId) {
+        return ownsClass(classId) || studentCanRead(classId);
+      }
+
+      // 帳號設定：自己可以建立「teacherId = 自己 UID」的新帳號，不能冒用其他教師。
+      // 舊帳號對應舊 teacherId 只可透過 Admin SDK 遷移。
+      match /teachers/{uid} {
+        allow get: if signedIn() && request.auth.uid == uid;
+        allow list: if false;
+        allow create: if emailUser() && request.auth.uid == uid &&
+          request.resource.data.keys().hasOnly(['teacherId','email','backupUrl','createdAt']) &&
+          request.resource.data.keys().hasAll(['teacherId','email','backupUrl','createdAt']) &&
+          request.resource.data.teacherId == uid &&
+          request.resource.data.email == request.auth.token.email &&
+          request.resource.data.backupUrl is string &&
+          request.resource.data.createdAt == request.time;
+        allow update: if signedIn() && request.auth.uid == uid &&
+          request.resource.data.diff(resource.data).affectedKeys().hasOnly(['email','backupUrl','updatedAt']) &&
+          request.resource.data.teacherId == resource.data.teacherId;
+        allow delete: if false;
+      }
+
+      // 舊版明文密碼：完全禁止網頁存取；伺服器 Admin SDK 才能遷移／刪除。
+      match /teacher_auth/{legacyId} { allow read, write: if false; }
+
+      // 班級：教師只能管理自己的班級。學生必須先持有正確代碼建立的授權。
+      match /classes/{classId} {
+        allow get: if isOwner(resource.data.teacherId) || studentCanRead(classId);
+        allow list: if isOwner(resource.data.teacherId);
+        allow create: if isOwner(request.resource.data.teacherId) &&
+          validCode(request.resource.data.classCode) &&
+          request.resource.data.keys().hasAll(['teacherId','name','classCode','totalGroups','createdAt']) &&
+          request.resource.data.name is string &&
+          request.resource.data.totalGroups is int &&
+          request.resource.data.totalGroups >= 1 && request.resource.data.totalGroups <= 20 &&
+          getAfter(codePath(request.resource.data.classCode)).data.classId == classId;
+        allow update: if isOwner(resource.data.teacherId) &&
+          request.resource.data.teacherId == resource.data.teacherId &&
+          request.resource.data.diff(resource.data).affectedKeys().hasOnly(['name','classCode','totalGroups']) &&
+          request.resource.data.name is string &&
+          validCode(request.resource.data.classCode) &&
+          request.resource.data.totalGroups >= 1 && request.resource.data.totalGroups <= 20 &&
+          getAfter(codePath(request.resource.data.classCode)).data.classId == classId;
+        allow delete: if false; // 原版沒有刪除班級功能；避免意外移除學生名單。
+      }
+
+      // 代碼索引：只允許按完整代碼 get，不允許列出所有班級代碼。
+      match /class_codes/{code} {
+        allow get: if signedIn();
+        allow list: if false;
+        allow create: if isOwner(request.resource.data.teacherId) &&
+          validCode(code) &&
+          request.resource.data.keys().hasOnly(['classId','teacherId','createdAt']) &&
+          getAfter(classPath(request.resource.data.classId)).data.teacherId == teacherId() &&
+          getAfter(classPath(request.resource.data.classId)).data.classCode == code;
+        allow update: if false;
+        allow delete: if isOwner(resource.data.teacherId) &&
+          getAfter(classPath(resource.data.classId)).data.teacherId == teacherId() &&
+          getAfter(classPath(resource.data.classId)).data.classCode != code;
+      }
+
+      // 授權單：學生只可替自己登記，Firestore Rules 會自行核對代碼與班級。
+      match /class_access/{grantId} {
+        function validGrant() {
+          return signedIn() &&
+            request.auth.token.firebase.sign_in_provider == 'anonymous' &&
+            request.resource.data.keys().hasOnly(['uid','classId','code','createdAt']) &&
+            request.resource.data.keys().hasAll(['uid','classId','code','createdAt']) &&
+            request.resource.data.uid == request.auth.uid &&
+            grantId == request.auth.uid + '_' + request.resource.data.classId &&
+            validCode(request.resource.data.code) &&
+            get(classPath(request.resource.data.classId)).data.classCode == request.resource.data.code &&
+            get(codePath(request.resource.data.code)).data.classId == request.resource.data.classId;
+        }
+        allow create: if validGrant() && request.resource.data.createdAt == request.time;
+        allow update: if validGrant() &&
+          request.resource.data.uid == resource.data.uid &&
+          request.resource.data.classId == resource.data.classId &&
+          request.resource.data.createdAt == request.time;
+        allow get: if signedIn() && resource.data.uid == request.auth.uid;
+        allow list: if false;
+        allow delete: if signedIn() && resource.data.uid == request.auth.uid;
+      }
+
+      // 學生積分：學生有正確班級授權才可讀，所有修改由班級所屬教師操作。
+      match /student_points/{studentId} {
+        allow get, list: if canReadClass(resource.data.classId);
+        allow create: if ownsClass(request.resource.data.classId) &&
+          request.resource.data.keys().hasAll(['name','studentNumber','points','classId']) &&
+          request.resource.data.name is string &&
+          request.resource.data.studentNumber is string &&
+          request.resource.data.points is number &&
+          request.resource.data.keys().hasOnly([
+            'name','studentNumber','points','classId','groupId','createdAt','lastReason','lastUpdate'
+          ]);
+        allow update: if ownsClass(resource.data.classId) &&
+          request.resource.data.classId == resource.data.classId &&
+          request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+            'name','studentNumber','points','groupId','lastReason','lastUpdate'
+          ]) && request.resource.data.points is number;
+        allow delete: if ownsClass(resource.data.classId);
+      }
+
+      // 個人化加扣分選單：原版 classId 欄位用來儲存教師 ID。
+      match /reward_presets/{presetId} {
+        allow get, list: if isOwner(resource.data.classId);
+        allow create: if isOwner(request.resource.data.classId) &&
+          request.resource.data.keys().hasAll(['label','value','classId']) &&
+          request.resource.data.label is string && request.resource.data.value is int;
+        allow update: if isOwner(resource.data.classId) &&
+          request.resource.data.classId == resource.data.classId;
+        allow delete: if isOwner(resource.data.classId);
+      }
+    }
+    // 預設拒絕所有其他路徑；如果同個 Firebase 專案另有其他系統，勿直接覆蓋其現有規則。
+    match /{document=**} { allow read, write: if false; }
+  }
+}

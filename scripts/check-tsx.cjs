@@ -1,0 +1,10 @@
+const fs = require('fs');
+const ts = require('typescript');
+const assert = require('assert');
+const p = require('path').join(__dirname, '../src/App.tsx');
+const code = fs.readFileSync(p,'utf8');
+const ast = ts.createSourceFile(p,code,ts.ScriptTarget.Latest,true,ts.ScriptKind.TSX);
+assert.strictEqual(ast.parseDiagnostics.length,0,ast.parseDiagnostics.map(d=>ts.flattenDiagnosticMessageText(d.messageText,' ')).join('\n'));
+const tr = ts.transpileModule(code,{fileName:p,reportDiagnostics:true,compilerOptions:{jsx:ts.JsxEmit.ReactJSX,target:ts.ScriptTarget.ES2020,module:ts.ModuleKind.ESNext}});
+assert.strictEqual(tr.diagnostics?.length||0,0);
+console.log('PASS: TSX 語法解析與獨立轉譯。不是整個專案的 npm run build。');

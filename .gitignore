@@ -1,0 +1,11 @@
+node_modules/
+dist/
+.env
+.env.local
+.firebase/
+work-preview.*.log
+
+# 私人 Firebase Admin 憑證，禁止提交
+*firebase-adminsdk*.json
+serviceAccountKey*.json
+service-account*.json

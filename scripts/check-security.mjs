@@ -1,0 +1,13 @@
+import {readFileSync} from 'node:fs';
+import assert from 'node:assert/strict';
+const app=readFileSync(new URL('../src/App.tsx', import.meta.url),'utf8');
+const rules=readFileSync(new URL('../firestore.rules', import.meta.url),'utf8');
+for (const term of ['createUserWithEmailAndPassword', 'signInWithEmailAndPassword', 'reauthenticateWithCredential', 'updatePassword', 'signOut(auth)', 'browserLocalPersistence', 'runTransaction(db', "'class_access'", "'class_codes'"]) assert(app.includes(term), 'missing '+term);
+assert(!app.includes("'teacher_auth'"),'client still accesses plaintext credentials');
+assert(!app.includes('data.password'),'client still checks Firestore password');
+assert(!app.includes("readLocal('teacher_id')"),'client trusts localStorage teacher ID');
+assert(rules.includes('match /teacher_auth/{legacyId} { allow read, write: if false; }'));
+assert(rules.includes('request.resource.data.teacherId == uid'));
+assert(rules.includes('allow get, list: if canReadClass(resource.data.classId)'));
+assert(rules.includes('allow list: if false;'));
+console.log('PASS: 源碼關鍵安全措施的靜態檢查。注意：這不是 Firebase Rules 模擬器或正式環境的驗證。');
