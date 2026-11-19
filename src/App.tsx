@@ -97,6 +97,9 @@ const appId = import.meta.env.VITE_DATA_NAMESPACE || 'default-app-id';
 
 // Firestore 一個 batch 最多可寫入 500 筆。保留餘裕，避免大型班級匯入時失敗。
 const MAX_BATCH_WRITES = 450;
+// 此信箱是唯一可在網站內審核教師申請的主要管理者。Firebase Auth
+// 的 email 不可被其他帳號冒用，規則亦會再次限制此權限。
+const PRIMARY_ADMIN_EMAIL = 'wantery@gmail.com';
 
 const BUILT_IN_PRESETS = [
   { presetKey: 'positive', label: '優良', value: 1 },
@@ -392,6 +395,11 @@ export default function App() {
               setViewMode('student-dashboard');
             }}
             onBack={() => setViewMode('teacher')}
+          />
+        ) : user && !user.isAnonymous && !isLoggedIn ? (
+          <PendingTeacherApproval
+            user={user}
+            onLogout={handleLogout}
           />
         ) : !isLoggedIn ? (
           <LoginPage
@@ -693,6 +701,8 @@ function LoginPage({ onGoToStudent }) {
   const [isRegistering, setIsRegistering] = useState(false);
   const [inputId, setInputId] = useState('');
   const [inputPassword, setInputPassword] = useState('');
+  const [applicantName, setApplicantName] = useState('');
+  const [organization, setOrganization] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
@@ -702,23 +712,34 @@ function LoginPage({ onGoToStudent }) {
     const email = inputId.trim().toLowerCase();
     if (!/^\S+@\S+\.\S+$/.test(email)) { setError('請輸入有效的電子郵件地址'); return; }
     if (inputPassword.length < 8) { setError('密碼至少需要 8 個字元'); return; }
+    if (isRegistering && (!applicantName.trim() || !organization.trim())) {
+      setError('請填寫姓名與學校／單位，供主要管理者審核'); return;
+    }
     setLoading(true);
     try {
       await setPersistence(auth, browserLocalPersistence);
       if (isRegistering) {
         const credential = await createUserWithEmailAndPassword(auth, email, inputPassword);
-        // 全新帳號的 teacherId 固定為 UID；不能自行指定其他教師的舊 ID。
-        await setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'teachers', credential.user.uid), {
-          teacherId: credential.user.uid,
-          email, backupUrl: '', createdAt: serverTimestamp()
-        });
-        notify('教師帳號建立成功，已登入。');
-      } else {
-        const credential = await signInWithEmailAndPassword(auth, email, inputPassword);
-        const profile = await getDoc(doc(db, 'artifacts', appId, 'public', 'data', 'teachers', credential.user.uid));
-        if (!profile.exists()) {
-          setError('此帳號尚未完成教師授權；舊帳號請先執行遷移。');
+        if (email === PRIMARY_ADMIN_EMAIL) {
+          // 主要管理者可自助建立自己的教師設定，其他帳號一律只能提出申請。
+          await setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'teachers', credential.user.uid), {
+            teacherId: credential.user.uid,
+            email, backupUrl: '', createdAt: serverTimestamp()
+          });
+          notify('主要管理者帳號建立成功，已登入。');
+        } else {
+          await setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'teacher_requests', credential.user.uid), {
+            uid: credential.user.uid,
+            email,
+            name: applicantName.trim(),
+            organization: organization.trim(),
+            status: 'pending',
+            createdAt: serverTimestamp()
+          });
+          notify('教師申請已送出，請等待主要管理者審核。', 'info');
         }
+      } else {
+        await signInWithEmailAndPassword(auth, email, inputPassword);
       }
       setInputPassword('');
     } catch (err) {
@@ -761,9 +782,22 @@ function LoginPage({ onGoToStudent }) {
               />
             </div>
             {isRegistering && (
-              <p className="text-xs text-slate-400 mt-1">新帳號使用 Firebase 安全驗證，不會把密碼存入 Firestore</p>
+              <p className="text-xs text-slate-400 mt-1">帳號建立後需由主要管理者審核；密碼不會存入 Firestore</p>
             )}
           </div>
+
+          {isRegistering && (
+            <>
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">申請者姓名</label>
+                <input type="text" value={applicantName} onChange={(e) => setApplicantName(e.target.value)} className="w-full px-4 py-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition" placeholder="請填寫真實姓名" maxLength={80} />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">學校／單位</label>
+                <input type="text" value={organization} onChange={(e) => setOrganization(e.target.value)} className="w-full px-4 py-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition" placeholder="例如：○○國小" maxLength={120} />
+              </div>
+            </>
+          )}
 
           <div>
             <label className="block text-sm font-medium text-slate-700 mb-1">
@@ -794,7 +828,7 @@ function LoginPage({ onGoToStudent }) {
             className={`w-full text-white font-bold py-3 rounded-lg transition duration-200 transform hover:scale-[1.02] shadow-lg flex items-center justify-center gap-2
               ${loading ? 'bg-slate-400 cursor-not-allowed' : 'bg-indigo-600 hover:bg-indigo-700'}`}
           >
-            {loading ? '處理中...' : (isRegistering ? '確認註冊' : '進入系統')}
+            {loading ? '處理中...' : (isRegistering ? '送出教師申請' : '進入系統')}
             {!loading && <ArrowRight className="w-4 h-4" />}
           </button>
         </form>
@@ -818,7 +852,7 @@ function LoginPage({ onGoToStudent }) {
             }}
             className="text-indigo-600 hover:text-indigo-800 font-medium text-sm hover:underline transition block w-full"
           >
-            {isRegistering ? '返回登入' : '註冊新教師帳號'}
+            {isRegistering ? '返回登入' : '申請教師帳號'}
           </button>
           
           {!isRegistering && (
@@ -830,6 +864,62 @@ function LoginPage({ onGoToStudent }) {
             </button>
           )}
         </div>
+      </div>
+    </div>
+  );
+}
+
+// 尚未獲得 teachers/{UID} 授權的帳號，絕不能進入教師主控台。
+function PendingTeacherApproval({ user, onLogout }) {
+  const { notify } = useUI();
+  const [request, setRequest] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
+  const [name, setName] = useState('');
+  const [organization, setOrganization] = useState('');
+  const [submitting, setSubmitting] = useState(false);
+
+  useEffect(() => {
+    const requestRef = doc(db, 'artifacts', appId, 'public', 'data', 'teacher_requests', user.uid);
+    return onSnapshot(requestRef, snap => {
+      setRequest(snap.exists() ? snap.data() : null);
+      setLoading(false);
+    }, () => setLoading(false));
+  }, [user.uid]);
+
+  const submitRequest = async (e) => {
+    e.preventDefault();
+    if (!name.trim() || !organization.trim()) {
+      notify('請填寫姓名與學校／單位', 'error'); return;
+    }
+    setSubmitting(true);
+    try {
+      await setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'teacher_requests', user.uid), {
+        uid: user.uid,
+        email: (user.email || '').toLowerCase(),
+        name: name.trim(),
+        organization: organization.trim(),
+        status: 'pending',
+        createdAt: serverTimestamp()
+      });
+      notify('教師申請已送出，請等待主要管理者審核。', 'info');
+    } catch (err) {
+      console.error('送出教師申請失敗', err);
+      notify('申請送出失敗，請確認已發布最新 Firestore Rules。', 'error');
+    } finally { setSubmitting(false); }
+  };
+
+  const statusMessage = request?.status === 'rejected'
+    ? '此申請未獲核准。若需要協助，請聯絡主要管理者。'
+    : '申請已送出，主要管理者核對資料後才會開通教師權限。';
+
+  return (
+    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-indigo-500 to-purple-600 p-4">
+      <div className="bg-white rounded-2xl shadow-2xl p-8 w-full max-w-md">
+        <div className="text-center mb-6"><div className="bg-amber-100 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4"><AlertCircle className="w-8 h-8 text-amber-600" /></div><h1 className="text-2xl font-bold text-slate-800">教師帳號待審核</h1><p className="text-slate-500 text-sm mt-2">{user.email}</p></div>
+        {loading ? <p className="text-center text-sm text-slate-500">讀取申請狀態中…</p>
+          : request ? <div className={`rounded-lg border p-4 text-sm ${request.status === 'rejected' ? 'bg-red-50 border-red-100 text-red-700' : 'bg-amber-50 border-amber-100 text-amber-800'}`}>{statusMessage}</div>
+          : <form onSubmit={submitRequest} className="space-y-4"><p className="text-sm text-slate-600">此帳號尚未送出教師申請。填寫資料後將交由主要管理者審核。</p><input type="text" value={name} onChange={e => setName(e.target.value)} className="w-full px-3 py-2 border rounded-lg" placeholder="申請者姓名" maxLength={80}/><input type="text" value={organization} onChange={e => setOrganization(e.target.value)} className="w-full px-3 py-2 border rounded-lg" placeholder="學校／單位" maxLength={120}/><button disabled={submitting} className="w-full bg-indigo-600 text-white font-bold py-2.5 rounded-lg disabled:bg-slate-400">{submitting ? '送出中…' : '送出教師申請'}</button></form>}
+        <button type="button" onClick={onLogout} className="w-full mt-5 text-sm text-indigo-600 hover:underline">登出</button>
       </div>
     </div>
   );
@@ -1907,6 +1997,7 @@ function Dashboard({ user, teacherId, onLogout }) {
           classes={classes}
           selectedClassId={selectedClassId}
           onBatchImport={handleBatchImport}
+          isPrimaryAdmin={(user.email || '').toLowerCase() === PRIMARY_ADMIN_EMAIL}
         />
       )}
     </div>
@@ -2657,7 +2748,7 @@ function ManagePresetsModal({ onClose, presets, teacherId }) {
 }
 
 // --- 系統設定視窗 (一般 / 班級管理 / 備份與匯入 / 安全) ---
-function SettingsModal({ onClose, classId, teacherUid, currentEmail, currentBackupUrl, classes = [], selectedClassId, onBatchImport }) {
+function SettingsModal({ onClose, classId, teacherUid, currentEmail, currentBackupUrl, classes = [], selectedClassId, onBatchImport, isPrimaryAdmin = false }) {
   const { notify, askConfirm } = useUI();
   const [activeTab, setActiveTab] = useState('general'); 
   const [email, setEmail] = useState(currentEmail || '');
@@ -2672,6 +2763,22 @@ function SettingsModal({ onClose, classId, teacherUid, currentEmail, currentBack
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const [importText, setImportText] = useState('');
+  const [teacherRequests, setTeacherRequests] = useState<any[]>([]);
+
+  useEffect(() => {
+    if (!isPrimaryAdmin) { setTeacherRequests([]); return undefined; }
+    const requestsRef = collection(db, 'artifacts', appId, 'public', 'data', 'teacher_requests');
+    return onSnapshot(requestsRef, snapshot => {
+      const pending = snapshot.docs
+        .map(item => ({ id: item.id, ...item.data() } as any))
+        .filter(item => item.status === 'pending')
+        .sort((a, b) => (a.createdAt?.seconds || 0) - (b.createdAt?.seconds || 0));
+      setTeacherRequests(pending);
+    }, err => {
+      console.error('讀取教師申請失敗', err);
+      notify('無法讀取教師申請，請確認已發布最新 Firestore Rules。', 'error');
+    });
+  }, [isPrimaryAdmin, notify]);
 
   const handleUpdateGeneral = async (e) => {
     e.preventDefault();
@@ -2811,6 +2918,43 @@ function SettingsModal({ onClose, classId, teacherUid, currentEmail, currentBack
     setImportText('');
   };
 
+  const reviewTeacherRequest = (requestItem, decision) => {
+    const approved = decision === 'approved';
+    askConfirm(
+      approved ? '核准教師申請' : '駁回教師申請',
+      approved
+        ? `確定核准 ${requestItem.name}（${requestItem.organization}，${requestItem.email}）？核准後此帳號可建立及管理自己的班級。`
+        : `確定駁回 ${requestItem.name}（${requestItem.email}）的教師申請？`,
+      async () => {
+        try {
+          await runTransaction(db, async tx => {
+            const requestRef = doc(db, 'artifacts', appId, 'public', 'data', 'teacher_requests', requestItem.id);
+            const current = await tx.get(requestRef);
+            if (!current.exists() || current.data().status !== 'pending') throw new Error('REQUEST_NOT_PENDING');
+            if (approved) {
+              tx.set(doc(db, 'artifacts', appId, 'public', 'data', 'teachers', requestItem.id), {
+                teacherId: requestItem.id,
+                email: current.data().email,
+                backupUrl: '',
+                createdAt: serverTimestamp()
+              });
+            }
+            tx.update(requestRef, {
+              status: decision,
+              reviewedAt: serverTimestamp(),
+              reviewedBy: teacherUid
+            });
+          });
+          notify(approved ? '已核准教師帳號。' : '已駁回教師申請。');
+        } catch (err) {
+          console.error('審核教師申請失敗', err);
+          notify('審核失敗，請確認最新 Firestore Rules 已發布。', 'error');
+        }
+      },
+      !approved
+    );
+  };
+
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50 backdrop-blur-sm">
       <div className="bg-white rounded-xl shadow-2xl w-full max-w-sm overflow-hidden animate-fade-in-up">
@@ -2827,6 +2971,7 @@ function SettingsModal({ onClose, classId, teacherUid, currentEmail, currentBack
           <button onClick={() => setActiveTab('classes')} className={`flex-shrink-0 px-4 py-3 text-sm font-medium transition ${activeTab === 'classes' ? 'text-indigo-600 border-b-2 border-indigo-600 bg-slate-50' : 'text-slate-500 hover:text-slate-700'}`}>班級管理</button>
           <button onClick={() => setActiveTab('backup')} className={`flex-shrink-0 px-4 py-3 text-sm font-medium transition ${activeTab === 'backup' ? 'text-indigo-600 border-b-2 border-indigo-600 bg-slate-50' : 'text-slate-500 hover:text-slate-700'}`}>備份</button>
           <button onClick={() => setActiveTab('security')} className={`flex-shrink-0 px-4 py-3 text-sm font-medium transition ${activeTab === 'security' ? 'text-indigo-600 border-b-2 border-indigo-600 bg-slate-50' : 'text-slate-500 hover:text-slate-700'}`}>安全</button>
+          {isPrimaryAdmin && <button onClick={() => setActiveTab('teacherRequests')} className={`flex-shrink-0 px-4 py-3 text-sm font-medium transition ${activeTab === 'teacherRequests' ? 'text-indigo-600 border-b-2 border-indigo-600 bg-slate-50' : 'text-slate-500 hover:text-slate-700'}`}>教師審核{teacherRequests.length ? ` (${teacherRequests.length})` : ''}</button>}
         </div>
 
         <div className="p-6">
@@ -2930,6 +3075,19 @@ function SettingsModal({ onClose, classId, teacherUid, currentEmail, currentBack
               {error && <div className="text-red-500 text-sm bg-red-50 p-2 rounded">{error}</div>}
               <div className="pt-2"><button type="submit" disabled={loading} className="w-full bg-slate-800 text-white font-bold py-2 rounded-lg hover:bg-slate-900 transition shadow-md">{loading ? '處理中...' : '確認修改密碼'}</button></div>
             </form>
+          )}
+
+          {isPrimaryAdmin && activeTab === 'teacherRequests' && (
+            <div className="space-y-3 max-h-[360px] overflow-y-auto">
+              <p className="text-xs text-slate-500">核對姓名、學校／單位與電子郵件後，再決定是否開通教師權限。</p>
+              {teacherRequests.length === 0 ? <p className="text-sm text-center py-8 text-slate-400">目前沒有待審核的教師申請</p>
+                : teacherRequests.map(requestItem => <div key={requestItem.id} className="border rounded-lg p-3 bg-amber-50/50">
+                  <p className="font-bold text-slate-800">{requestItem.name || '未填姓名'}</p>
+                  <p className="text-xs text-slate-600 mt-1">{requestItem.organization || '未填學校／單位'}</p>
+                  <p className="text-xs text-indigo-700 mt-1 break-all">{requestItem.email}</p>
+                  <div className="flex justify-end gap-2 mt-3"><button onClick={() => reviewTeacherRequest(requestItem, 'rejected')} className="px-3 py-1.5 text-xs border border-red-200 text-red-600 bg-white rounded hover:bg-red-50">駁回</button><button onClick={() => reviewTeacherRequest(requestItem, 'approved')} className="px-3 py-1.5 text-xs font-bold text-white bg-emerald-600 rounded hover:bg-emerald-700">核准</button></div>
+                </div>)}
+            </div>
           )}
         </div>
       </div>

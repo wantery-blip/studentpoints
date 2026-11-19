@@ -11,9 +11,14 @@ service cloud.firestore {
       function teacherPath() {
         return /databases/$(database)/documents/artifacts/$(namespace)/public/data/teachers/$(request.auth.uid);
       }
+      function requestPath(uid) {
+        return /databases/$(database)/documents/artifacts/$(namespace)/public/data/teacher_requests/$(uid);
+      }
       function isTeacher() { return signedIn() && exists(teacherPath()); }
       function teacherId() { return get(teacherPath()).data.teacherId; }
       function isOwner(ownerId) { return isTeacher() && teacherId() == ownerId; }
+      function isPrimaryEmail() { return emailUser() && request.auth.token.email == 'wantery@gmail.com'; }
+      function isPrimaryAdmin() { return isPrimaryEmail() && exists(teacherPath()); }
       function classPath(classId) {
         return /databases/$(database)/documents/artifacts/$(namespace)/public/data/classes/$(classId);
       }
@@ -44,21 +49,52 @@ service cloud.firestore {
         return ownsClass(classId) || studentCanRead(classId);
       }
 
-      // 帳號設定：自己可以建立「teacherId = 自己 UID」的新帳號，不能冒用其他教師。
-      // 舊帳號對應舊 teacherId 只可透過 Admin SDK 遷移。
+      // 教師權限僅能由主要管理者核准，或由主要管理者首次建立自己的帳號。
+      // 舊帳號對應舊 teacherId 只可透過 Console / Admin SDK 遷移。
       match /teachers/{uid} {
         allow get: if signedIn() && request.auth.uid == uid;
         allow list: if false;
-        allow create: if emailUser() && request.auth.uid == uid &&
+        allow create: if (
+          (isPrimaryEmail() && request.auth.uid == uid) ||
+          (isPrimaryAdmin() && exists(requestPath(uid)) &&
+            get(requestPath(uid)).data.uid == uid &&
+            get(requestPath(uid)).data.email == request.resource.data.email &&
+            get(requestPath(uid)).data.status == 'pending')
+        ) &&
           request.resource.data.keys().hasOnly(['teacherId','email','backupUrl','createdAt']) &&
           request.resource.data.keys().hasAll(['teacherId','email','backupUrl','createdAt']) &&
           request.resource.data.teacherId == uid &&
-          request.resource.data.email == request.auth.token.email &&
+          request.resource.data.email is string &&
           request.resource.data.backupUrl is string &&
           request.resource.data.createdAt == request.time;
         allow update: if signedIn() && request.auth.uid == uid &&
           request.resource.data.diff(resource.data).affectedKeys().hasOnly(['email','backupUrl','updatedAt']) &&
           request.resource.data.teacherId == resource.data.teacherId;
+        allow delete: if false;
+      }
+
+      // 一般帳號只能建立自己的「待審核」申請，無法自行取得教師權限。
+      // 主要管理者可列出申請，並在核准／駁回時留下審核紀錄。
+      match /teacher_requests/{uid} {
+        allow create: if emailUser() && request.auth.uid == uid &&
+          request.resource.data.keys().hasOnly(['uid','email','name','organization','status','createdAt']) &&
+          request.resource.data.keys().hasAll(['uid','email','name','organization','status','createdAt']) &&
+          request.resource.data.uid == uid &&
+          request.resource.data.email == request.auth.token.email &&
+          request.resource.data.name is string && request.resource.data.name.size() > 0 && request.resource.data.name.size() <= 80 &&
+          request.resource.data.organization is string && request.resource.data.organization.size() > 0 && request.resource.data.organization.size() <= 120 &&
+          request.resource.data.status == 'pending' && request.resource.data.createdAt == request.time;
+        allow get: if (signedIn() && request.auth.uid == uid) || isPrimaryAdmin();
+        allow list: if isPrimaryAdmin();
+        allow update: if isPrimaryAdmin() && resource.data.status == 'pending' &&
+          request.resource.data.keys().hasOnly(['uid','email','name','organization','status','createdAt','reviewedAt','reviewedBy']) &&
+          request.resource.data.uid == resource.data.uid &&
+          request.resource.data.email == resource.data.email &&
+          request.resource.data.name == resource.data.name &&
+          request.resource.data.organization == resource.data.organization &&
+          request.resource.data.createdAt == resource.data.createdAt &&
+          (request.resource.data.status == 'approved' || request.resource.data.status == 'rejected') &&
+          request.resource.data.reviewedAt == request.time && request.resource.data.reviewedBy == request.auth.uid;
         allow delete: if false;
       }
 

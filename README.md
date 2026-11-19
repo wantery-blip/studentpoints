@@ -7,7 +7,8 @@
 ## 一、修正內容
 
 - 教師：Firebase 電子郵件 + 密碼登入、`browserLocalPersistence` 本機持久登入、確實 `signOut()` 登出，忘記密碼可寄重設信。
-- 新註冊教師：登入後建立 `teachers/{UID}`，`teacherId` 固定為自己的 UID，不能改成別人的舊 ID。
+- 教師申請：除 `wantery@gmail.com` 外，新帳號只能送出姓名、學校／單位與信箱供審核；未核准前不會建立 `teachers/{UID}`，因此不能建立班級或加扣分。
+- 主要管理者：`wantery@gmail.com` 可在「系統設定 → 教師審核」核對資料後核准或駁回申請；核准才建立教師權限。
 - 舊教師：使用遷移工具把舊 `teacherId` 綁定到新的 Firebase Authentication UID；原本 `classes.teacherId`、`reward_presets.classId` **不需重寫**。
 - 學生：仍為匿名登入；輸入班級代碼後，只能 `get` 對應的 `class_codes/{CODE}`，安全規則核對代碼後才建立 `class_access/{uid}_{classId}` 唯讀授權。
 - Firestore Rules：教師只能讀寫自己班級及預設獎勵；學生僅能讀取其有代碼授權的班級及學生積分；`teacher_auth` 前端全面禁止讀寫；其他路徑預設拒絕。
@@ -28,7 +29,16 @@ npm install
 npm run dev
 ```
 
-瀏覽器開啟終端機提示的網址。新教師可以用 email 註冊；**舊帳號不能直接輸入原來的教師 ID/舊密碼**，必須完成下一節轉移。
+瀏覽器開啟終端機提示的網址。新教師可用 email 註冊並送出申請；只有 `wantery@gmail.com` 可免審核建立主要管理者設定。**舊帳號不能直接輸入原來的教師 ID/舊密碼**，必須完成下一節轉移。
+
+### 教師申請與審核流程
+
+1. 申請者在登入頁按「申請教師帳號」，填寫電子郵件、密碼、真實姓名與學校／單位。
+2. 帳號只會在 Firebase Authentication 建立；網站將資料放入 `teacher_requests/{UID}`，其狀態為 `pending`，尚無教師權限。
+3. 以 `wantery@gmail.com` 登入後，開啟「系統設定 → 教師審核」，核對資料後按「核准」或「駁回」。
+4. 核准會建立 `teachers/{UID}`，申請者重新整理後才可建立自己的班級及管理積分。駁回帳號則維持無權限狀態。
+
+> 主要管理者信箱寫在 `src/App.tsx` 的 `PRIMARY_ADMIN_EMAIL` 與 `firestore.rules`，兩處必須保持相同；若日後要更換主要管理者，需一起修改、測試並重新發布規則。
 
 ## 三、舊教師帳號及原始資料遷移（不改學生分數）
 
@@ -103,6 +113,7 @@ node scripts/migrate-legacy.mjs --teacher-id TeacherWang --email teacher@example
 | 路徑 | 教師 | 學生匿名使用者 |
 |---|---|---|
 | `teachers/{UID}` | 只能讀寫自己的個人設定，不可改 `teacherId` | 不可讀寫 |
+| `teacher_requests/{UID}` | 申請者只能讀自己的申請；主要管理者可列出及審核 | 不可讀寫 |
 | `teacher_auth/{oldId}` | 不可讀寫 | 不可讀寫 |
 | `classes/{classId}` | 自己的班級可讀寫允許欄位 | 有授權才能讀單筆 |
 | `class_codes/{CODE}` | 自己的班級可建立／換碼 | 只能用正確代碼讀單筆，不可列舉 |
@@ -114,7 +125,8 @@ node scripts/migrate-legacy.mjs --teacher-id TeacherWang --email teacher@example
 
 ## 五、驗收測試（務必以測試班完成）
 
-1. 新教師註冊：Firestore `teachers/{UID}` 沒有 `password` 欄位；登入成功。
+1. 一般新教師註冊：只建立 `teacher_requests/{UID}`，登入只顯示待審核頁面，不能建立班級或加扣分。
+2. 以 `wantery@gmail.com` 核准後，才建立 `teachers/{UID}`；申請者重新整理後可以登入教師系統。
 2. 教師建立班級與學生、快速 +1/-1、全班加分、小組加分均可使用。
 3. 關閉／縮小／切換分頁／重新整理：教師仍為 Firebase 登入狀態（非無痕模式）。
 4. 明確按「登出」：重新進入教師頁需要重新輸入密碼。

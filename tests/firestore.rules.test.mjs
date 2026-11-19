@@ -14,6 +14,10 @@ const teacherDb = (uid, teacherId) => testEnv.authenticatedContext(uid, {
   email: `${uid}@example.test`,
   firebase: { sign_in_provider: 'password' }
 }).firestore();
+const primaryAdminDb = () => testEnv.authenticatedContext('primary-admin', {
+  email: 'wantery@gmail.com',
+  firebase: { sign_in_provider: 'password' }
+}).firestore();
 const studentDb = uid => testEnv.authenticatedContext(uid, {
   firebase: { sign_in_provider: 'anonymous' }
 }).firestore();
@@ -24,6 +28,7 @@ async function seed() {
     const db = context.firestore();
     await setDoc(doc(db, path('teachers', 'teacher-a')), { teacherId: 'legacy-a', email: 'teacher-a@example.test', backupUrl: '' });
     await setDoc(doc(db, path('teachers', 'teacher-b')), { teacherId: 'legacy-b', email: 'teacher-b@example.test', backupUrl: '' });
+    await setDoc(doc(db, path('teachers', 'primary-admin')), { teacherId: 'primary-admin', email: 'wantery@gmail.com', backupUrl: '' });
     await setDoc(doc(db, path('classes', 'class-a')), { teacherId: 'legacy-a', name: '甲班', classCode: 'SAFE2026', totalGroups: 4 });
     await setDoc(doc(db, path('classes', 'class-b')), { teacherId: 'legacy-b', name: '乙班', classCode: 'OTHER2026', totalGroups: 4 });
     await setDoc(doc(db, path('class_codes', 'SAFE2026')), { classId: 'class-a', teacherId: 'legacy-a' });
@@ -76,5 +81,25 @@ test('學生不可列舉班級代碼或使用錯誤代碼建立授權', async ()
   await assertFails(getDocs(collection(db, path('class_codes'))));
   await assertFails(setDoc(doc(db, path('class_access', 'student-new_class-a')), {
     uid: 'student-new', classId: 'class-a', code: 'WRONG2026', createdAt: new Date()
+  }));
+});
+
+test('一般帳號只能送出申請，主要管理者核准後才會成為教師', async () => {
+  const applicant = teacherDb('applicant');
+  await assertSucceeds(setDoc(doc(applicant, path('teacher_requests', 'applicant')), {
+    uid: 'applicant', email: 'applicant@example.test', name: '申請老師', organization: '測試學校',
+    status: 'pending', createdAt: serverTimestamp()
+  }));
+  await assertFails(setDoc(doc(applicant, path('teachers', 'applicant')), {
+    teacherId: 'applicant', email: 'applicant@example.test', backupUrl: '', createdAt: serverTimestamp()
+  }));
+
+  const admin = primaryAdminDb();
+  await assertSucceeds(getDocs(collection(admin, path('teacher_requests'))));
+  await assertSucceeds(setDoc(doc(admin, path('teachers', 'applicant')), {
+    teacherId: 'applicant', email: 'applicant@example.test', backupUrl: '', createdAt: serverTimestamp()
+  }));
+  await assertSucceeds(updateDoc(doc(admin, path('teacher_requests', 'applicant')), {
+    status: 'approved', reviewedAt: serverTimestamp(), reviewedBy: 'primary-admin'
   }));
 });
