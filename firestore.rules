@@ -28,7 +28,10 @@ service cloud.firestore {
       }
       function ownsClass(classId) {
         return signedIn() && exists(classPath(classId)) &&
-          isOwner(get(classPath(classId)).data.teacherId);
+          // 新帳號的班級 teacherId 即 Firebase Auth UID；直接比對可讓寫入和
+          // where(classId == ...) 查詢由 Rules 明確驗證。舊 teacherId 仍走 isOwner。
+          (get(classPath(classId)).data.teacherId == request.auth.uid ||
+            isOwner(get(classPath(classId)).data.teacherId));
       }
       function studentCanRead(classId) {
         return signedIn() &&
