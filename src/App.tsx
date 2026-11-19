@@ -1446,15 +1446,18 @@ function Dashboard({ user, teacherId, onLogout }) {
     }
   }, [notify, selectedClassId, sendScoreLog, teacherId]);
 
-  const handleBatchPointsUpdate = async (points, reason) => {
-    if (students.length === 0) return;
-    const finalReason = reason || (points > 0 ? '全班加分' : '全班扣分');
+  const handleBatchPointsUpdate = async (points, reason, targetStudentIds: string[]) => {
+    const selectedStudents = students.filter(student => targetStudentIds.includes(student.id));
+    if (selectedStudents.length === 0) {
+      notify('請至少選擇一位學生', 'error'); return;
+    }
+    const finalReason = reason || (points > 0 ? '多人加分' : '多人扣分');
     const eventId = doc(collection(db, 'artifacts', appId, 'public', 'data', 'point_history')).id;
     try {
       // 每位學生會同時更新分數和建立一筆歷程，故每批最多 225 位。
-      for (let start = 0; start < students.length; start += 225) {
+      for (let start = 0; start < selectedStudents.length; start += 225) {
         const batch = writeBatch(db);
-        students.slice(start, start + 225).forEach(student => {
+        selectedStudents.slice(start, start + 225).forEach(student => {
           const studentRef = doc(db, 'artifacts', appId, 'public', 'data', 'student_points', student.id);
           batch.update(studentRef, {
             points: increment(points),
@@ -1465,16 +1468,16 @@ function Dashboard({ user, teacherId, onLogout }) {
           batch.set(historyRef, {
             classId: selectedClassId, studentId: student.id, teacherId, change: points,
             reason: finalReason, groupId: student.groupId ?? null,
-            type: '全班加扣分', eventId, createdAt: serverTimestamp()
+            type: '多人加扣分', eventId, createdAt: serverTimestamp()
           });
         });
         await batch.commit();
       }
       setShowBatchActionModal(false);
-      notify(`全班已${points > 0 ? `加 ${points}` : `扣 ${Math.abs(points)}`} 分！`);
+      notify(`${selectedStudents.length} 位學生已${points > 0 ? `加 ${points}` : `扣 ${Math.abs(points)}`} 分！`);
     } catch (err) { 
       console.error(err); 
-      notify('全班更新失敗', 'error'); 
+      notify('多人更新失敗', 'error');
     }
   };
 
@@ -1647,7 +1650,7 @@ function Dashboard({ user, teacherId, onLogout }) {
               </button>
               <button onClick={() => setShowBatchActionModal(true)} className="flex items-center gap-2 bg-pink-600 text-white px-3 py-2 rounded-lg hover:bg-pink-700 transition shadow-md text-sm font-medium">
                 <Zap className="w-4 h-4" />
-                <span>全班加分</span>
+                <span>多人加分</span>
               </button>
               <button onClick={() => setShowStatsModal(true)} className="flex items-center gap-2 bg-emerald-600 text-white px-3 py-2 rounded-lg hover:bg-emerald-700 transition shadow-md text-sm font-medium">
                 <BarChart3 className="w-4 h-4" />
@@ -1935,7 +1938,7 @@ function Dashboard({ user, teacherId, onLogout }) {
           onClose={() => setShowBatchActionModal(false)}
           onConfirm={handleBatchPointsUpdate}
           presets={actionPresets}
-          studentCount={students.length}
+          students={students}
         />
       )}
 
@@ -2490,11 +2493,14 @@ function StatsModal({ onClose, students, classId }) {
   );
 }
 
-// --- 全班批次加扣分視窗 ---
-function BatchActionModal({ onClose, onConfirm, presets, studentCount }) {
+// --- 多人加扣分視窗 ---
+function BatchActionModal({ onClose, onConfirm, presets, students }) {
   const { notify } = useUI();
   const [points, setPoints] = useState('');
   const [reason, setReason] = useState('');
+  const [targetMode, setTargetMode] = useState('all');
+  const [seatInput, setSeatInput] = useState('');
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
 
   const handlePresetClick = (preset) => {
     setPoints(preset.value);
@@ -2512,20 +2518,53 @@ function BatchActionModal({ onClose, onConfirm, presets, studentCount }) {
       notify('請輸入加扣分理由', 'error');
       return;
     }
-    onConfirm(p, reason.trim());
+    let targets = students;
+    if (targetMode === 'numbers') {
+      const requestedNumbers = [...new Set(seatInput.split(/[\s,，]+/).map(normalizeSeatNumber).filter(Boolean))];
+      if (!requestedNumbers.length) {
+        notify('請輸入至少一個座號，例如：1,2,3,5,7', 'error'); return;
+      }
+      const byNumber = new Map(students.filter(student => student.studentNumber).map(student => [normalizeSeatNumber(student.studentNumber), student]));
+      const missing = requestedNumbers.filter(number => !byNumber.has(number));
+      if (missing.length) {
+        notify(`找不到座號：${missing.join('、')}`, 'error'); return;
+      }
+      targets = requestedNumbers.map(number => byNumber.get(number));
+    } else if (targetMode === 'select') {
+      targets = students.filter(student => selectedIds.includes(student.id));
+      if (!targets.length) {
+        notify('請點選至少一位學生', 'error'); return;
+      }
+    }
+    onConfirm(p, reason.trim(), targets.map(student => student.id));
   };
+
+  const toggleStudent = (id) => setSelectedIds(current =>
+    current.includes(id) ? current.filter(item => item !== id) : [...current, id]
+  );
 
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50 backdrop-blur-sm">
       <div className="bg-white rounded-xl shadow-2xl w-full max-w-md overflow-hidden animate-fade-in-up">
         <div className="bg-pink-600 p-4 flex justify-between items-center">
           <h3 className="text-white font-bold flex items-center gap-2">
-            <Zap className="w-5 h-5" /> 全班加扣分 ({studentCount}人)
+            <Zap className="w-5 h-5" /> 多人加扣分
           </h3>
           <button onClick={onClose} className="text-white/80 hover:text-white"><X className="w-5 h-5" /></button>
         </div>
 
         <div className="p-5">
+          <div className="mb-5">
+            <label className="block text-xs font-bold text-slate-500 uppercase mb-2">選擇加扣分對象</label>
+            <div className="grid grid-cols-3 gap-2">
+              <button type="button" onClick={() => setTargetMode('all')} className={`rounded-lg border px-2 py-2 text-sm font-bold ${targetMode === 'all' ? 'bg-pink-600 text-white border-pink-600' : 'bg-white text-slate-600 border-slate-200'}`}>全班加分<br/><span className="text-xs font-normal">{students.length} 人</span></button>
+              <button type="button" onClick={() => setTargetMode('numbers')} className={`rounded-lg border px-2 py-2 text-sm font-bold ${targetMode === 'numbers' ? 'bg-pink-600 text-white border-pink-600' : 'bg-white text-slate-600 border-slate-200'}`}>輸入座號</button>
+              <button type="button" onClick={() => setTargetMode('select')} className={`rounded-lg border px-2 py-2 text-sm font-bold ${targetMode === 'select' ? 'bg-pink-600 text-white border-pink-600' : 'bg-white text-slate-600 border-slate-200'}`}>點選座號<br/><span className="text-xs font-normal">{selectedIds.length} 人</span></button>
+            </div>
+            {targetMode === 'numbers' && <div className="mt-3"><label className="block text-xs text-slate-500 mb-1">座號可用逗號、空格或換行分隔</label><input value={seatInput} onChange={e => setSeatInput(e.target.value)} className="w-full px-3 py-2 border rounded-lg font-mono focus:ring-2 focus:ring-pink-500 outline-none" placeholder="例如：1,2,3,5,7" /></div>}
+            {targetMode === 'select' && <div className="mt-3 max-h-40 overflow-y-auto grid grid-cols-4 gap-2 rounded-lg border p-2 bg-slate-50">{students.map(student => { const chosen = selectedIds.includes(student.id); return <button key={student.id} type="button" onClick={() => toggleStudent(student.id)} className={`rounded border px-1 py-2 text-xs ${chosen ? 'bg-pink-600 border-pink-600 text-white' : 'bg-white border-slate-200 text-slate-700 hover:border-pink-300'}`} title={student.name}><span className="block font-bold">{student.studentNumber || '未設'}</span><span className="block truncate">{student.name}</span></button>; })}</div>}
+          </div>
+
           <div className="mb-5">
             <label className="block text-xs font-bold text-slate-500 uppercase mb-2">快速選擇預設項目</label>
             {presets.length === 0 ? (
