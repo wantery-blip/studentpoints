@@ -828,6 +828,7 @@ function Dashboard({ user, teacherId, onLogout }) {
   const [showBatchActionModal, setShowBatchActionModal] = useState(false);
   const [showPresetsModal, setShowPresetsModal] = useState(false);
   const [showStatsModal, setShowStatsModal] = useState(false);
+  const [showStudentQueryModal, setShowStudentQueryModal] = useState(false);
   const [showDailyPrompt, setShowDailyPrompt] = useState(false);
   const [historyStudent, setHistoryStudent] = useState<any>(null);
   const [historyGroupId, setHistoryGroupId] = useState<number | null>(null);
@@ -1512,6 +1513,10 @@ function Dashboard({ user, teacherId, onLogout }) {
                 <BarChart3 className="w-4 h-4" />
                 <span>統計</span>
               </button>
+              <button onClick={() => setShowStudentQueryModal(true)} className="flex items-center gap-2 bg-cyan-600 text-white px-3 py-2 rounded-lg hover:bg-cyan-700 transition shadow-md text-sm font-medium" title="確認或修改學生查詢碼">
+                <Search className="w-4 h-4" />
+                <span>學生查詢</span>
+              </button>
               <button onClick={() => setShowAddModal(true)} className="flex items-center gap-2 bg-indigo-600 text-white px-3 py-2 rounded-lg hover:bg-indigo-700 transition shadow-md text-sm font-medium">
                 <UserPlus className="w-4 h-4" />
                 <span>學生</span>
@@ -1801,6 +1806,19 @@ function Dashboard({ user, teacherId, onLogout }) {
         />
       )}
 
+      {showStudentQueryModal && (
+        <StudentQueryModal
+          classes={classes}
+          teacherId={teacherId}
+          selectedClassId={selectedClassId}
+          onSelectClass={(classId) => {
+            setSelectedClassId(classId);
+            writeLocal(`last_selected_class_${teacherId}`, classId);
+          }}
+          onClose={() => setShowStudentQueryModal(false)}
+        />
+      )}
+
       {historyStudent && (
         <StudentHistoryModal
           student={historyStudent}
@@ -1838,6 +1856,125 @@ function Dashboard({ user, teacherId, onLogout }) {
           onBatchImport={handleBatchImport}
         />
       )}
+    </div>
+  );
+}
+
+// --- 教師用學生查詢碼管理 ---
+// 查分入口採「每班一組查詢碼」設計；此處只讓該班教師檢視與變更自己的代碼。
+function StudentQueryModal({ classes, teacherId, selectedClassId, onSelectClass, onClose }) {
+  const { notify } = useUI();
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [queryCode, setQueryCode] = useState('');
+  const [saving, setSaving] = useState(false);
+
+  const beginEditing = (classItem) => {
+    setEditingId(classItem.id);
+    setQueryCode(classItem.classCode || '');
+  };
+
+  const saveCode = async (classItem) => {
+    const nextCode = queryCode.trim().toUpperCase();
+    if (!/^[A-Z0-9_-]{4,32}$/.test(nextCode)) {
+      notify('查詢碼須為 4–32 位英文、數字、底線或連字號', 'error');
+      return;
+    }
+    const previousCode = classItem.classCode || '';
+    if (nextCode === previousCode) {
+      setEditingId(null);
+      return;
+    }
+
+    setSaving(true);
+    try {
+      const classRef = doc(db, 'artifacts', appId, 'public', 'data', 'classes', classItem.id);
+      const nextCodeRef = doc(db, 'artifacts', appId, 'public', 'data', 'class_codes', nextCode);
+      await runTransaction(db, async (transaction) => {
+        const currentClass = await transaction.get(classRef);
+        if (!currentClass.exists() || currentClass.data().teacherId !== teacherId) throw new Error('NOT_OWNER');
+        const occupiedCode = await transaction.get(nextCodeRef);
+        if (occupiedCode.exists()) throw new Error('DUPLICATE_CLASS_CODE');
+
+        transaction.set(nextCodeRef, { classId: classItem.id, teacherId, createdAt: serverTimestamp() });
+        transaction.update(classRef, { classCode: nextCode });
+        if (previousCode) {
+          transaction.delete(doc(db, 'artifacts', appId, 'public', 'data', 'class_codes', previousCode));
+        }
+      });
+      setEditingId(null);
+      notify('學生查詢碼已更新');
+    } catch (error: any) {
+      console.error('更新學生查詢碼失敗', error);
+      notify(error?.message === 'DUPLICATE_CLASS_CODE' ? '此查詢碼已被其他班級使用' : '更新查詢碼失敗', 'error');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const copyCode = async (code) => {
+    try {
+      await navigator.clipboard.writeText(code);
+      notify('學生查詢碼已複製');
+    } catch {
+      notify('無法自動複製，請手動選取查詢碼', 'info');
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4 backdrop-blur-sm">
+      <div className="bg-white rounded-xl shadow-2xl w-full max-w-lg overflow-hidden animate-fade-in-up">
+        <div className="bg-cyan-700 p-4 flex items-center justify-between">
+          <div>
+            <h3 className="text-white font-bold flex items-center gap-2"><Search className="w-5 h-5" /> 學生查詢</h3>
+            <p className="text-cyan-100 text-xs mt-1">確認或修改各班學生查分時輸入的班級查詢碼</p>
+          </div>
+          <button onClick={onClose} className="text-white/80 hover:text-white" aria-label="關閉學生查詢"><X className="w-5 h-5" /></button>
+        </div>
+        <div className="p-5 space-y-3 max-h-[65vh] overflow-y-auto">
+          {classes.length === 0 ? (
+            <p className="text-center text-slate-500 py-8">尚未建立班級，請先建立班級後再提供學生查詢碼。</p>
+          ) : classes.map((classItem) => (
+            <div key={classItem.id} className={`border rounded-xl p-4 ${classItem.id === selectedClassId ? 'border-cyan-300 bg-cyan-50/50' : 'border-slate-200'}`}>
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <p className="font-bold text-slate-800 truncate">{classItem.name}</p>
+                  {editingId === classItem.id ? (
+                    <div className="mt-3">
+                      <label className="block text-xs font-medium text-slate-600 mb-1">學生查詢碼</label>
+                      <input
+                        autoFocus
+                        value={queryCode}
+                        maxLength={32}
+                        onChange={(event) => setQueryCode(event.target.value.toUpperCase())}
+                        className="w-full px-3 py-2 border rounded-lg font-mono font-bold tracking-wide uppercase focus:ring-2 focus:ring-cyan-500 outline-none"
+                        placeholder="例如：CLASS-01"
+                      />
+                      <p className="mt-1 text-xs text-slate-500">4–32 位英文、數字、底線或連字號</p>
+                    </div>
+                  ) : (
+                    <div className="mt-2 flex items-center gap-2">
+                      <code className="bg-white border border-cyan-200 text-cyan-800 font-bold px-2.5 py-1 rounded text-sm tracking-wide">{classItem.classCode || '尚未設定'}</code>
+                      {classItem.classCode && <button onClick={() => copyCode(classItem.classCode)} className="text-slate-400 hover:text-cyan-700" title="複製查詢碼"><Copy className="w-4 h-4" /></button>}
+                    </div>
+                  )}
+                </div>
+                {editingId === classItem.id ? (
+                  <div className="flex shrink-0 gap-2">
+                    <button disabled={saving} onClick={() => setEditingId(null)} className="text-sm text-slate-600 px-2 py-1 hover:bg-slate-100 rounded">取消</button>
+                    <button disabled={saving} onClick={() => saveCode(classItem)} className="text-sm bg-cyan-700 text-white px-3 py-1 rounded hover:bg-cyan-800 disabled:opacity-50">{saving ? '儲存中…' : '儲存'}</button>
+                  </div>
+                ) : (
+                  <div className="flex shrink-0 gap-1">
+                    <button onClick={() => onSelectClass(classItem.id)} className="p-1.5 text-slate-400 hover:text-cyan-700 hover:bg-cyan-50 rounded" title="切換至此班"><Users className="w-4 h-4" /></button>
+                    <button onClick={() => beginEditing(classItem)} className="p-1.5 text-slate-400 hover:text-cyan-700 hover:bg-cyan-50 rounded" title="修改學生查詢碼"><Pencil className="w-4 h-4" /></button>
+                  </div>
+                )}
+              </div>
+            </div>
+          ))}
+        </div>
+        <div className="p-4 border-t bg-slate-50 flex justify-end"><button onClick={onClose} className="px-4 py-2 text-slate-600 hover:bg-slate-200 rounded-lg">關閉</button></div>
+      </div>
     </div>
   );
 }
