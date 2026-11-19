@@ -152,16 +152,17 @@ service cloud.firestore {
         allow create: if ownsClass(request.resource.data.classId) &&
           isOwner(request.resource.data.teacherId) &&
           request.resource.data.keys().hasOnly([
-            'classId','studentId','teacherId','change','reason','groupId','type','createdAt'
+            'classId','studentId','teacherId','change','reason','groupId','type','eventId','createdAt'
           ]) &&
           request.resource.data.keys().hasAll([
-            'classId','studentId','teacherId','change','reason','type','createdAt'
+            'classId','studentId','teacherId','change','reason','type','eventId','createdAt'
           ]) &&
           request.resource.data.studentId is string &&
           request.resource.data.teacherId is string &&
           request.resource.data.change is number &&
           request.resource.data.reason is string &&
           request.resource.data.type is string &&
+          request.resource.data.eventId is string &&
           (!request.resource.data.keys().hasAny(['groupId']) || request.resource.data.groupId is int ||
             request.resource.data.groupId == null) &&
           request.resource.data.createdAt == request.time;

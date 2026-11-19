@@ -98,6 +98,18 @@ const appId = import.meta.env.VITE_DATA_NAMESPACE || 'default-app-id';
 // Firestore 一個 batch 最多可寫入 500 筆。保留餘裕，避免大型班級匯入時失敗。
 const MAX_BATCH_WRITES = 450;
 
+const BUILT_IN_PRESETS = [
+  { presetKey: 'positive', label: '優良', value: 1 },
+  { presetKey: 'negative', label: '違規', value: -1 }
+];
+
+const resolveActionPresets = (storedPresets) => {
+  const defaults = BUILT_IN_PRESETS.map(fallback =>
+    storedPresets.find(preset => preset.presetKey === fallback.presetKey) || fallback
+  );
+  return [...defaults, ...storedPresets.filter(preset => !preset.presetKey)];
+};
+
 const normalizeSeatNumber = (value) => {
   const trimmed = String(value ?? '').trim();
   return /^\d+$/.test(trimmed) ? String(Number(trimmed)) : trimmed;
@@ -818,6 +830,7 @@ function Dashboard({ user, teacherId, onLogout }) {
   const [showStatsModal, setShowStatsModal] = useState(false);
   const [showDailyPrompt, setShowDailyPrompt] = useState(false);
   const [historyStudent, setHistoryStudent] = useState<any>(null);
+  const [historyGroupId, setHistoryGroupId] = useState<number | null>(null);
   
   // 新增學生表單狀態
   const [addTab, setAddTab] = useState('single');
@@ -828,6 +841,7 @@ function Dashboard({ user, teacherId, onLogout }) {
   const selectedClass = useMemo(
     () => classes.find(c => c.id === selectedClassId), [classes, selectedClassId]
   );
+  const actionPresets = useMemo(() => resolveActionPresets(presets), [presets]);
 
   const sendScoreLog = useCallback((records) => {
     if (!backupUrl || !selectedClassId || !selectedClass) return;
@@ -1263,6 +1277,7 @@ function Dashboard({ user, teacherId, onLogout }) {
     try {
       const finalReason = reason || (change > 0 ? '加分' : '扣分');
       const studentRef = doc(db, 'artifacts', appId, 'public', 'data', 'student_points', student.id);
+      const historyRef = doc(collection(db, 'artifacts', appId, 'public', 'data', 'point_history'));
       const batch = writeBatch(db);
       batch.update(studentRef, {
         // 原版使用舊畫面的 points + change，連續點擊或多人操作可能覆蓋分數。
@@ -1270,9 +1285,9 @@ function Dashboard({ user, teacherId, onLogout }) {
         lastReason: finalReason,
         lastUpdate: serverTimestamp()
       });
-      batch.set(doc(collection(db, 'artifacts', appId, 'public', 'data', 'point_history')), {
+      batch.set(historyRef, {
         classId: selectedClassId, studentId: student.id, teacherId, change, reason: finalReason,
-        groupId: student.groupId ?? null, type: '學生加扣分', createdAt: serverTimestamp()
+        groupId: student.groupId ?? null, type: '學生加扣分', eventId: historyRef.id, createdAt: serverTimestamp()
       });
       await batch.commit();
       sendScoreLog([{
@@ -1290,6 +1305,7 @@ function Dashboard({ user, teacherId, onLogout }) {
   const handleBatchPointsUpdate = async (points, reason) => {
     if (students.length === 0) return;
     const finalReason = reason || (points > 0 ? '全班加分' : '全班扣分');
+    const eventId = doc(collection(db, 'artifacts', appId, 'public', 'data', 'point_history')).id;
     try {
       // 每位學生會同時更新分數和建立一筆歷程，故每批最多 225 位。
       for (let start = 0; start < students.length; start += 225) {
@@ -1301,10 +1317,11 @@ function Dashboard({ user, teacherId, onLogout }) {
             lastReason: finalReason,
             lastUpdate: serverTimestamp()
           });
-          batch.set(doc(collection(db, 'artifacts', appId, 'public', 'data', 'point_history')), {
+          const historyRef = doc(collection(db, 'artifacts', appId, 'public', 'data', 'point_history'));
+          batch.set(historyRef, {
             classId: selectedClassId, studentId: student.id, teacherId, change: points,
             reason: finalReason, groupId: student.groupId ?? null,
-            type: '全班加扣分', createdAt: serverTimestamp()
+            type: '全班加扣分', eventId, createdAt: serverTimestamp()
           });
         });
         await batch.commit();
@@ -1382,6 +1399,7 @@ function Dashboard({ user, teacherId, onLogout }) {
       return;
     }
     const finalReason = reason || (amount > 0 ? `第${groupId}組加分` : `第${groupId}組扣分`);
+    const eventId = doc(collection(db, 'artifacts', appId, 'public', 'data', 'point_history')).id;
     try {
       for (let start = 0; start < groupMembers.length; start += 225) {
         const batch = writeBatch(db);
@@ -1392,9 +1410,10 @@ function Dashboard({ user, teacherId, onLogout }) {
             lastReason: finalReason,
             lastUpdate: serverTimestamp()
           });
-          batch.set(doc(collection(db, 'artifacts', appId, 'public', 'data', 'point_history')), {
+          const historyRef = doc(collection(db, 'artifacts', appId, 'public', 'data', 'point_history'));
+          batch.set(historyRef, {
             classId: selectedClassId, studentId: s.id, teacherId, change: amount,
-            reason: finalReason, groupId, type: '小組加扣分', createdAt: serverTimestamp()
+            reason: finalReason, groupId, type: '小組加扣分', eventId, createdAt: serverTimestamp()
           });
         });
         await batch.commit();
@@ -1587,7 +1606,7 @@ function Dashboard({ user, teacherId, onLogout }) {
                   <StudentCard 
                     key={student.id} 
                     student={student} 
-                    presets={presets}
+                    presets={actionPresets}
                     onUpdatePoints={updatePoints}
                     onDelete={deleteStudent}
                     onShowHistory={setHistoryStudent}
@@ -1599,10 +1618,12 @@ function Dashboard({ user, teacherId, onLogout }) {
             <GroupView 
               students={students} 
               totalGroups={selectedClass?.totalGroups || 6} 
+              presets={actionPresets}
               onAssignGroup={handleAssignGroup}
               onRemoveFromGroup={handleRemoveFromGroup}
               onUpdateGroupCount={updateGroupCount}
               onGroupPointAction={handleGroupPoints}
+              onShowGroupHistory={setHistoryGroupId}
             />
           )}
         </>
@@ -1766,7 +1787,7 @@ function Dashboard({ user, teacherId, onLogout }) {
         <BatchActionModal 
           onClose={() => setShowBatchActionModal(false)}
           onConfirm={handleBatchPointsUpdate}
-          presets={presets}
+          presets={actionPresets}
           studentCount={students.length}
         />
       )}
@@ -1788,11 +1809,19 @@ function Dashboard({ user, teacherId, onLogout }) {
         />
       )}
 
+      {historyGroupId !== null && (
+        <GroupHistoryModal
+          groupId={historyGroupId}
+          classId={selectedClassId}
+          onClose={() => setHistoryGroupId(null)}
+        />
+      )}
+
       {/* 6. 自訂獎勵項目設定視窗 */}
       {showPresetsModal && (
         <ManagePresetsModal 
           onClose={() => setShowPresetsModal(false)}
-          presets={presets}
+          presets={actionPresets}
           teacherId={teacherId}
         />
       )}
@@ -1813,10 +1842,45 @@ function Dashboard({ user, teacherId, onLogout }) {
   );
 }
 
+function GroupActionModal({ groupId, onClose, onConfirm }) {
+  const [points, setPoints] = useState('');
+  const [reason, setReason] = useState('');
+
+  const submit = async (event) => {
+    event.preventDefault();
+    const value = Number(points);
+    if (!Number.isFinite(value) || value === 0) return;
+    await onConfirm(value, reason.trim() || '小組自訂加扣分');
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4 backdrop-blur-sm">
+      <form onSubmit={submit} className="bg-white rounded-xl shadow-2xl w-full max-w-sm overflow-hidden animate-fade-in-up">
+        <div className="bg-indigo-600 p-4 flex items-center justify-between">
+          <h3 className="text-white font-bold flex items-center gap-2"><Edit3 className="w-5 h-5" /> 第 {groupId} 組自訂加扣分</h3>
+          <button type="button" onClick={onClose} className="text-white/80 hover:text-white"><X className="w-5 h-5" /></button>
+        </div>
+        <div className="p-5 space-y-4">
+          <div>
+            <label className="block text-sm font-medium text-slate-700 mb-1">加減分數</label>
+            <input type="number" required autoFocus value={points} onChange={event => setPoints(event.target.value)} placeholder="例如：5 或 -3" className="w-full px-3 py-2 border rounded-lg font-bold font-mono focus:ring-2 focus:ring-indigo-500 outline-none" />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-slate-700 mb-1">原因</label>
+            <input type="text" value={reason} onChange={event => setReason(event.target.value)} placeholder="例如：合作表現優良" className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none" />
+          </div>
+          <div className="flex justify-end gap-3 pt-2"><button type="button" onClick={onClose} className="px-4 py-2 text-slate-600 hover:bg-slate-100 rounded-lg">取消</button><button type="submit" className="px-4 py-2 bg-indigo-600 text-white font-bold rounded-lg hover:bg-indigo-700">確認執行</button></div>
+        </div>
+      </form>
+    </div>
+  );
+}
+
 // --- 小組管理視圖元件 ---
-function GroupView({ students, totalGroups, onAssignGroup, onRemoveFromGroup, onUpdateGroupCount, onGroupPointAction }) {
+function GroupView({ students, totalGroups, presets, onAssignGroup, onRemoveFromGroup, onUpdateGroupCount, onGroupPointAction, onShowGroupHistory }) {
   const [groupCountInput, setGroupCountInput] = useState(totalGroups);
   const [inputMap, setInputMap] = useState({}); 
+  const [customGroupId, setCustomGroupId] = useState<number | null>(null);
 
   useEffect(() => { setGroupCountInput(totalGroups); }, [totalGroups]);
 
@@ -1875,7 +1939,7 @@ function GroupView({ students, totalGroups, onAssignGroup, onRemoveFromGroup, on
             <div key={groupId} className="bg-white rounded-xl shadow-sm border border-slate-200 flex flex-col h-80">
               {/* 小組標題 */}
               <div className="p-3 bg-slate-50 border-b border-slate-100 flex justify-between items-center rounded-t-xl">
-                <span className="font-bold text-slate-700">第 {groupId} 組</span>
+                <button type="button" onClick={() => onShowGroupHistory(groupId)} className="font-bold text-slate-700 hover:text-indigo-600 hover:underline focus:outline-none focus:ring-2 focus:ring-indigo-300 rounded" title="查看本組加扣分紀錄">第 {groupId} 組</button>
                 <span className="text-xs bg-indigo-100 text-indigo-700 font-bold px-2 py-0.5 rounded-full">{members.length} 人</span>
               </div>
               
@@ -1923,47 +1987,36 @@ function GroupView({ students, totalGroups, onAssignGroup, onRemoveFromGroup, on
                 )}
               </div>
 
-              {/* 小組連動加扣分按鈕 (+1, -1, +5, -5, +10) */}
+              {/* 小組連動加扣分：與個人卡片共用預設／自訂獎勵項目。 */}
               <div className="p-2.5 border-t border-slate-100 bg-slate-50 rounded-b-xl">
-                <div className="grid grid-cols-2 gap-2 mb-2">
-                  <button 
-                    onClick={() => onGroupPointAction(groupId, 1)}
-                    className="bg-white border border-indigo-200 text-indigo-600 py-1.5 rounded-lg text-xs font-bold hover:bg-indigo-50 transition shadow-sm"
-                  >
-                    +1
-                  </button>
-                  <button 
-                    onClick={() => onGroupPointAction(groupId, -1)}
-                    className="bg-white border border-red-200 text-red-600 py-1.5 rounded-lg text-xs font-bold hover:bg-red-50 transition shadow-sm"
-                  >
-                    -1
-                  </button>
+                <div className="grid grid-cols-2 gap-2 max-h-24 overflow-y-auto custom-scrollbar">
+                  {presets.map(preset => (
+                    <button
+                      key={preset.id || preset.presetKey}
+                      type="button"
+                      onClick={() => onGroupPointAction(groupId, preset.value, preset.label)}
+                      className={`bg-white border py-1.5 rounded-lg text-xs font-bold transition shadow-sm ${preset.value > 0 ? 'border-indigo-200 text-indigo-600 hover:bg-indigo-50' : 'border-red-200 text-red-600 hover:bg-red-50'}`}
+                    >
+                      {preset.value > 0 ? `+${preset.value}` : preset.value} {preset.label}
+                    </button>
+                  ))}
                 </div>
-                <div className="grid grid-cols-3 gap-2">
-                  <button 
-                    onClick={() => onGroupPointAction(groupId, 5)}
-                    className="bg-white border border-indigo-200 text-indigo-600 py-1.5 rounded-lg text-xs font-bold hover:bg-indigo-50 transition shadow-sm"
-                  >
-                    +5
-                  </button>
-                  <button 
-                    onClick={() => onGroupPointAction(groupId, -5)}
-                    className="bg-white border border-red-200 text-red-600 py-1.5 rounded-lg text-xs font-bold hover:bg-red-50 transition shadow-sm"
-                  >
-                    -5
-                  </button>
-                  <button 
-                    onClick={() => onGroupPointAction(groupId, 10)}
-                    className="bg-white border border-indigo-200 text-indigo-600 py-1.5 rounded-lg text-xs font-bold hover:bg-indigo-50 transition shadow-sm"
-                  >
-                    +10
-                  </button>
-                </div>
+                <button type="button" onClick={() => setCustomGroupId(groupId)} className="w-full mt-2 bg-white border border-slate-300 border-dashed text-slate-500 py-1.5 rounded-lg text-xs font-bold hover:bg-slate-100 hover:text-indigo-600 transition"><Edit3 className="w-3.5 h-3.5 inline mr-1" />自訂加扣分</button>
               </div>
             </div>
           );
         })}
       </div>
+      {customGroupId !== null && (
+        <GroupActionModal
+          groupId={customGroupId}
+          onClose={() => setCustomGroupId(null)}
+          onConfirm={async (points, reason) => {
+            await onGroupPointAction(customGroupId, points, reason);
+            setCustomGroupId(null);
+          }}
+        />
+      )}
     </div>
   );
 }
@@ -2261,6 +2314,38 @@ function ManagePresetsModal({ onClose, presets, teacherId }) {
   const { notify, askConfirm } = useUI();
   const [label, setLabel] = useState('');
   const [value, setValue] = useState('');
+  const positivePreset = presets.find(preset => preset.presetKey === 'positive') || BUILT_IN_PRESETS[0];
+  const negativePreset = presets.find(preset => preset.presetKey === 'negative') || BUILT_IN_PRESETS[1];
+  const [defaultValues, setDefaultValues] = useState({
+    positiveLabel: positivePreset.label, positiveValue: String(positivePreset.value),
+    negativeLabel: negativePreset.label, negativeValue: String(negativePreset.value)
+  });
+
+  useEffect(() => {
+    setDefaultValues({
+      positiveLabel: positivePreset.label, positiveValue: String(positivePreset.value),
+      negativeLabel: negativePreset.label, negativeValue: String(negativePreset.value)
+    });
+  }, [positivePreset.label, positivePreset.value, negativePreset.label, negativePreset.value]);
+
+  const saveDefault = async (presetKey) => {
+    const isPositive = presetKey === 'positive';
+    const nextLabel = (isPositive ? defaultValues.positiveLabel : defaultValues.negativeLabel).trim();
+    const nextValue = Number(isPositive ? defaultValues.positiveValue : defaultValues.negativeValue);
+    if (!nextLabel || !Number.isFinite(nextValue) || nextValue === 0) {
+      notify('請輸入項目名稱與非 0 分數', 'error');
+      return;
+    }
+    try {
+      await setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'reward_presets', `${teacherId}_default_${presetKey}`), {
+        label: nextLabel, value: nextValue, classId: teacherId, presetKey, updatedAt: serverTimestamp()
+      }, { merge: true });
+      notify('預設項目已儲存');
+    } catch (error) {
+      console.error(error);
+      notify('儲存預設項目失敗', 'error');
+    }
+  };
 
   const handleAdd = async (e) => {
     e.preventDefault();
@@ -2308,7 +2393,19 @@ function ManagePresetsModal({ onClose, presets, teacherId }) {
           <button onClick={onClose} className="text-white/80 hover:text-white"><X className="w-5 h-5" /></button>
         </div>
 
-        <div className="p-4 bg-slate-50 border-b border-slate-200 flex-shrink-0">
+        <div className="p-4 bg-slate-50 border-b border-slate-200 flex-shrink-0 space-y-3">
+          <div>
+            <p className="text-xs font-bold text-slate-500 uppercase mb-2">預設項目（個人與小組共用）</p>
+            <div className="grid grid-cols-2 gap-2">
+              {[['positive', '加分', 'positiveLabel', 'positiveValue'], ['negative', '扣分', 'negativeLabel', 'negativeValue']].map(([presetKey, title, labelKey, valueKey]) => (
+                <div key={presetKey} className="bg-white border rounded-lg p-2 space-y-1.5">
+                  <p className="text-xs font-bold text-slate-600">{title}</p>
+                  <input value={(defaultValues as any)[labelKey]} onChange={event => setDefaultValues(previous => ({ ...previous, [labelKey]: event.target.value }))} className="w-full px-2 py-1 border rounded text-sm" aria-label={`${title}原因`} />
+                  <div className="flex gap-1"><input type="number" value={(defaultValues as any)[valueKey]} onChange={event => setDefaultValues(previous => ({ ...previous, [valueKey]: event.target.value }))} className="min-w-0 flex-1 px-2 py-1 border rounded text-sm font-mono" aria-label={`${title}分數`} /><button type="button" onClick={() => saveDefault(presetKey)} className="text-xs bg-indigo-600 text-white px-2 rounded hover:bg-indigo-700">儲存</button></div>
+                </div>
+              ))}
+            </div>
+          </div>
           <form onSubmit={handleAdd} className="flex gap-2">
             <input 
               type="text" 
@@ -2333,13 +2430,13 @@ function ManagePresetsModal({ onClose, presets, teacherId }) {
         </div>
 
         <div className="overflow-y-auto p-4 space-y-2 flex-1">
-          {presets.length === 0 ? (
+          {presets.filter(preset => !preset.presetKey).length === 0 ? (
             <div className="text-center text-slate-500 py-8 text-sm flex flex-col items-center">
               <p className="mb-1 font-medium">尚未設定任何自訂項目</p>
               <p className="text-xs text-slate-400">新增後，所有班級皆可共用這些快速按鈕</p>
             </div>
           ) : (
-            presets.map(p => (
+            presets.filter(preset => !preset.presetKey).map(p => (
               <div key={p.id} className="flex justify-between items-center bg-white p-3 rounded-lg border shadow-sm">
                 <div className="flex items-center gap-2">
                   <span className={`font-bold w-10 text-center ${p.value > 0 ? 'text-blue-600' : 'text-red-600'}`}>
@@ -2607,6 +2704,59 @@ function SettingsModal({ onClose, classId, teacherUid, currentEmail, currentBack
   );
 }
 
+// --- 小組加扣分歷程 ---
+function GroupHistoryModal({ groupId, classId, onClose }) {
+  const [entries, setEntries] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+
+  useEffect(() => {
+    const historyQuery = query(
+      collection(db, 'artifacts', appId, 'public', 'data', 'point_history'),
+      where('classId', '==', classId),
+      where('groupId', '==', groupId),
+      where('type', '==', '小組加扣分')
+    );
+    const unsubscribe = onSnapshot(historyQuery, (snapshot) => {
+      const seenEvents = new Set<string>();
+      const rows = snapshot.docs
+        .map(item => ({ id: item.id, ...item.data() } as any))
+        .sort((a, b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0))
+        .filter(entry => {
+          const eventKey = entry.eventId || entry.id;
+          if (seenEvents.has(eventKey)) return false;
+          seenEvents.add(eventKey);
+          return true;
+        });
+      setEntries(rows);
+      setLoading(false);
+    }, (snapshotError) => {
+      console.error('讀取小組歷程失敗', snapshotError);
+      setError('無法取得小組加扣分紀錄，請檢查網路或 Firestore 權限。');
+      setLoading(false);
+    });
+    return () => unsubscribe();
+  }, [classId, groupId]);
+
+  const formatTime = (timestamp) => timestamp?.seconds
+    ? new Date(timestamp.seconds * 1000).toLocaleString('zh-TW', { hour12: false })
+    : '剛剛';
+
+  return (
+    <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4 backdrop-blur-sm">
+      <div className="bg-white rounded-xl shadow-2xl w-full max-w-md max-h-[80vh] overflow-hidden animate-fade-in-up">
+        <div className="bg-indigo-600 p-4 flex items-center justify-between"><h3 className="text-white font-bold flex items-center gap-2"><History className="w-5 h-5" /> 第 {groupId} 組加扣分紀錄</h3><button type="button" onClick={onClose} className="text-white/80 hover:text-white p-1" aria-label="關閉紀錄"><X className="w-5 h-5" /></button></div>
+        <div className="overflow-y-auto max-h-[60vh] p-4">
+          {loading ? <div className="py-10 text-center text-slate-400"><Loader2 className="w-6 h-6 animate-spin mx-auto mb-2" />載入紀錄中...</div>
+            : error ? <p className="p-3 text-sm text-red-600 bg-red-50 rounded-lg">{error}</p>
+            : entries.length === 0 ? <p className="py-10 text-center text-slate-400 text-sm">目前尚無本組加扣分紀錄</p>
+            : <div className="space-y-2">{entries.map(entry => <div key={entry.id} className="border border-slate-100 rounded-lg p-3 flex items-center gap-3"><span className={`shrink-0 font-black text-lg ${entry.change >= 0 ? 'text-indigo-600' : 'text-red-500'}`}>{entry.change > 0 ? `+${entry.change}` : entry.change}</span><div className="min-w-0 flex-1"><p className="text-sm font-medium text-slate-700 truncate">{entry.reason || '未填寫原因'}</p><p className="text-xs text-slate-400 mt-1">{formatTime(entry.createdAt)}</p></div></div>)}</div>}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // --- 學生個人加扣分歷程 ---
 function StudentHistoryModal({ student, classId, onClose }) {
   const [entries, setEntries] = useState<any[]>([]);
@@ -2771,35 +2921,7 @@ const StudentCard = React.memo(function StudentCard({ student, onUpdatePoints, o
       {/* 下方 2/3：快速加扣分按鈕網格 */}
       <div className="h-2/3 p-3 bg-white overflow-y-auto custom-scrollbar">
         <div className="grid grid-cols-2 gap-2 content-start">
-          {/* 預設 +1 優良 */}
-          <button 
-            onClick={() => handlePointChange(1)}
-            disabled={isUpdating}
-            className="flex items-stretch h-12 rounded-lg border border-indigo-100 overflow-hidden shadow-sm hover:shadow-md transition active:scale-95 group/btn"
-          >
-            <div className="w-1/3 flex items-center justify-center bg-indigo-50 text-indigo-600 font-bold text-lg border-r border-indigo-100 group-hover/btn:bg-indigo-100 transition">
-              +1
-            </div>
-            <div className="w-2/3 flex items-center justify-center bg-white text-indigo-600 text-base font-medium">
-              優良
-            </div>
-          </button>
-
-          {/* 預設 -1 違規 */}
-          <button 
-            onClick={() => handlePointChange(-1)}
-            disabled={isUpdating}
-            className="flex items-stretch h-12 rounded-lg border border-red-100 overflow-hidden shadow-sm hover:shadow-md transition active:scale-95 group/btn"
-          >
-            <div className="w-1/3 flex items-center justify-center bg-red-50 text-red-600 font-bold text-lg border-r border-red-100 group-hover/btn:bg-red-100 transition">
-              -1
-            </div>
-            <div className="w-2/3 flex items-center justify-center bg-white text-red-600 text-base font-medium">
-              違規
-            </div>
-          </button>
-
-          {/* 自訂獎勵項目按鈕 */}
+          {/* 預設與自訂獎勵項目按鈕，皆可在「獎勵項目設定」調整。 */}
           {presets.map(p => (
             <button
               key={p.id}

@@ -30,7 +30,7 @@ async function seed() {
     await setDoc(doc(db, path('class_codes', 'OTHER2026')), { classId: 'class-b', teacherId: 'legacy-b' });
     await setDoc(doc(db, path('student_points', 'student-a')), { name: '王小明', studentNumber: '01', points: 3, classId: 'class-a' });
     await setDoc(doc(db, path('student_points', 'student-b')), { name: '陳小華', studentNumber: '02', points: 8, classId: 'class-b' });
-    await setDoc(doc(db, path('point_history', 'history-a')), { classId: 'class-a', studentId: 'student-a', teacherId: 'legacy-a', change: 1, reason: '既有紀錄', type: '學生加扣分', createdAt: new Date() });
+    await setDoc(doc(db, path('point_history', 'history-a')), { classId: 'class-a', studentId: 'student-a', teacherId: 'legacy-a', change: 1, reason: '既有紀錄', type: '學生加扣分', eventId: 'history-a', createdAt: new Date() });
     await setDoc(doc(db, path('class_access', 'student-a_class-a')), { uid: 'student-a', classId: 'class-a', code: 'SAFE2026' });
     await setDoc(doc(db, path('teacher_auth', 'legacy-a')), { password: 'never-exposed' });
   });
@@ -49,7 +49,7 @@ test('所屬教師可用 increment 更新自己班級學生積分', async () => 
   }));
   await assertSucceeds(setDoc(doc(db, path('point_history', 'history-new')), {
     classId: 'class-a', studentId: 'student-a', teacherId: 'legacy-a',
-    change: 2, reason: '測試', type: '學生加扣分', createdAt: serverTimestamp()
+    change: 2, reason: '測試', type: '學生加扣分', eventId: 'history-new', createdAt: serverTimestamp()
   }));
 });
 
