@@ -65,7 +65,10 @@ service cloud.firestore {
       // 班級：教師只能管理自己的班級。學生必須先持有正確代碼建立的授權。
       match /classes/{classId} {
         allow get: if isOwner(resource.data.teacherId) || studentCanRead(classId);
-        allow list: if isOwner(resource.data.teacherId);
+        // 新系統的 teacherId 為 Firebase Auth UID，讓清單查詢能以 where(teacherId == UID)
+        // 被 Rules 靜態驗證；保留 isOwner 分支以相容已遷移的舊 teacherId。
+        allow list: if (signedIn() && resource.data.teacherId == request.auth.uid) ||
+          isOwner(resource.data.teacherId);
         allow create: if isOwner(request.resource.data.teacherId) &&
           validCode(request.resource.data.classCode) &&
           request.resource.data.keys().hasAll(['teacherId','name','classCode','totalGroups','createdAt']) &&
