@@ -123,6 +123,40 @@ const totalPointsFor = (student, groupPoints = {}, divisor = 1) =>
 
 const formatPoints = (value) => Number.isInteger(value) ? String(value) : Number(value).toFixed(2).replace(/\.00$/, '');
 
+const QUOTA_HOLD_KEY = 'studentpoints_quota_hold';
+
+const readQuotaHold = () => {
+  try {
+    const raw = readLocal(QUOTA_HOLD_KEY);
+    if (!raw) return null;
+    const hold = JSON.parse(raw);
+    return hold?.expiresAt > Date.now() ? hold : null;
+  } catch { return null; }
+};
+
+const pacificReset = () => {
+  const zone = 'America/Los_Angeles';
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    timeZone: zone, year: 'numeric', month: '2-digit', day: '2-digit'
+  }).formatToParts(new Date()).reduce((result, part) => ({ ...result, [part.type]: part.value }), {} as Record<string, string>);
+  const nextDay = new Date(Date.UTC(Number(parts.year), Number(parts.month) - 1, Number(parts.day) + 1));
+  let timestamp = nextDay.getTime();
+  // 以 IANA 時區反覆校正，正確處理夏令時間的 UTC 位移。
+  for (let attempt = 0; attempt < 2; attempt += 1) {
+    const offsetLabel = new Intl.DateTimeFormat('en-US', { timeZone: zone, timeZoneName: 'longOffset' })
+      .formatToParts(new Date(timestamp)).find(part => part.type === 'timeZoneName')?.value || 'GMT-08:00';
+    const offset = offsetLabel.match(/^GMT([+-])(\d{2}):(\d{2})$/);
+    const minutes = offset ? (Number(offset[2]) * 60 + Number(offset[3])) * (offset[1] === '+' ? 1 : -1) : -480;
+    timestamp = nextDay.getTime() - minutes * 60 * 1000;
+  }
+  return timestamp;
+};
+
+const isQuotaError = (error) => {
+  const message = `${error?.code || ''} ${error?.message || error || ''}`.toLowerCase();
+  return /resource-exhausted|quota|rate.?limit|too many requests|limit exceeded/.test(message);
+};
+
 const normalizeSeatNumber = (value) => {
   const trimmed = String(value ?? '').trim();
   return /^\d+$/.test(trimmed) ? String(Number(trimmed)) : trimmed;
@@ -210,6 +244,7 @@ export default function App() {
   // 全域提示訊息 (Toast) 與確認對話框 (Confirm Modal) 狀態
   const [toast, setToast] = useState(null);
   const [confirmDialog, setConfirmDialog] = useState(null);
+  const [quotaHold, setQuotaHold] = useState(readQuotaHold);
 
   // 顯示非阻斷式通知訊息
   const notify = useCallback((message, type = 'success') => {
@@ -227,7 +262,31 @@ export default function App() {
   const askConfirm = useCallback((title, message, onConfirm, isDanger = false) => {
     setConfirmDialog({ title, message, onConfirm, isDanger });
   }, []);
-  const uiValue = useMemo(() => ({ notify, askConfirm }), [notify, askConfirm]);
+  const reportQuotaError = useCallback((error, service = 'Firestore') => {
+    if (!isQuotaError(error)) return false;
+    const expiresAt = pacificReset();
+    const resetAt = new Intl.DateTimeFormat('zh-TW', {
+      timeZone: 'Asia/Taipei', dateStyle: 'medium', timeStyle: 'short'
+    }).format(new Date(expiresAt));
+    const hold = { service, expiresAt, resetAt };
+    writeLocal(QUOTA_HOLD_KEY, JSON.stringify(hold));
+    setQuotaHold(hold);
+    return true;
+  }, []);
+  const uiValue = useMemo(() => ({ notify, askConfirm, reportQuotaError }), [notify, askConfirm, reportQuotaError]);
+
+  useEffect(() => {
+    if (!quotaHold) return undefined;
+    const clearWhenReset = () => {
+      if (quotaHold.expiresAt <= Date.now()) {
+        removeLocal(QUOTA_HOLD_KEY);
+        setQuotaHold(null);
+      }
+    };
+    clearWhenReset();
+    const timer = window.setInterval(clearWhenReset, 60 * 1000);
+    return () => window.clearInterval(timer);
+  }, [quotaHold]);
 
   // 初次啟動時恢復 Firebase 本機 session，不會因縮小或切換分頁主動登出。
   // 匿名登入僅供學生查分，不具有教師身分。
@@ -335,6 +394,7 @@ export default function App() {
             目前離線：資料會在重新連線後同步；請勿關閉尚未完成的操作。
           </div>
         )}
+        {quotaHold && <QuotaHoldModal hold={quotaHold} />}
         
         {/* 全域 Toast 提示元件 */}
         {toast && (
@@ -414,6 +474,17 @@ export default function App() {
         )}
       </div>
     </UIContext.Provider>
+  );
+}
+
+function QuotaHoldModal({ hold }) {
+  return (
+    <div className="fixed inset-0 z-[130] bg-slate-950/70 flex items-center justify-center p-4 backdrop-blur-sm" role="alertdialog" aria-modal="true" aria-labelledby="quota-hold-title">
+      <div className="w-full max-w-md rounded-2xl bg-white shadow-2xl overflow-hidden animate-fade-in-up">
+        <div className="bg-amber-500 p-5 text-amber-950 flex items-start gap-3"><AlertCircle className="w-7 h-7 shrink-0" /><div><h2 id="quota-hold-title" className="font-bold text-lg">免費用量暫停保護已啟動</h2><p className="text-sm mt-1">{hold.service} 回報配額或速率限制，網站已暫停操作以避免持續失敗。</p></div></div>
+        <div className="p-5 space-y-3 text-sm text-slate-600"><p>預計重新計算時間：<strong className="text-slate-900">{hold.resetAt}（台灣時間）</strong></p><p>此時間依 Firestore 每日免費額度的美國太平洋時間午夜推算。時間到後此瀏覽器會自動解除暫停；若雲端仍拒絕請求，請至 Firebase Console 確認用量。</p><p className="rounded-lg bg-slate-100 p-3 text-xs">Google Apps Script 的 no-cors 回應無法由瀏覽器讀取配額狀態；GitHub Pages 若用量超限可能直接無法載入頁面，因此兩者無法在頁內預先偵測。</p></div>
+      </div>
+    </div>
   );
 }
 
@@ -927,7 +998,7 @@ function PendingTeacherApproval({ user, onLogout }) {
 
 // --- 教師管理主控台 (Dashboard) ---
 function Dashboard({ user, teacherId, onLogout }) {
-  const { notify, askConfirm } = useUI();
+  const { notify, askConfirm, reportQuotaError } = useUI();
 
   const [classes, setClasses] = useState([]);
   const [selectedClassId, setSelectedClassId] = useState(() => readLocal(`last_selected_class_${teacherId}`));
@@ -953,6 +1024,10 @@ function Dashboard({ user, teacherId, onLogout }) {
   const [showDailyPrompt, setShowDailyPrompt] = useState(false);
   const [historyStudent, setHistoryStudent] = useState<any>(null);
   const [historyGroupId, setHistoryGroupId] = useState<number | null>(null);
+  const [honorFontScale, setHonorFontScale] = useState(() => {
+    const stored = Number(readLocal(`honor_font_scale_${teacherId}`));
+    return Number.isFinite(stored) && stored >= 0.8 && stored <= 1.6 ? stored : 1;
+  });
   
   // 新增學生表單狀態
   const [addTab, setAddTab] = useState('single');
@@ -1113,6 +1188,14 @@ function Dashboard({ user, teacherId, onLogout }) {
     writeLocal(`last_selected_class_${teacherId}`, newId);
   };
 
+  const changeHonorFontScale = (change) => {
+    setHonorFontScale(current => {
+      const next = Math.min(1.6, Math.max(0.8, Number((current + change).toFixed(2))));
+      writeLocal(`honor_font_scale_${teacherId}`, String(next));
+      return next;
+    });
+  };
+
   // 更新班級分組數量
   const updateGroupCount = async (count) => {
     if (!selectedClassId || count < 1 || count > 20) return;
@@ -1122,6 +1205,7 @@ function Dashboard({ user, teacherId, onLogout }) {
       notify(`已設定為 ${count} 組`);
     } catch (err) {
       console.error(err);
+      if (reportQuotaError(err)) return;
       notify('更新組數失敗', 'error');
     }
   };
@@ -1344,6 +1428,7 @@ function Dashboard({ user, teacherId, onLogout }) {
           notify(`成功匯入 ${successCount} 筆學生資料！`, 'success');
         } catch (e) {
           console.error(e);
+          if (reportQuotaError(e)) return;
           notify('匯入失敗，請檢查資料格式', 'error');
         }
       }
@@ -1369,6 +1454,7 @@ function Dashboard({ user, teacherId, onLogout }) {
       notify(`已新增學生：${newStudentName.trim()}`);
     } catch (err) { 
       console.error(err);
+      if (reportQuotaError(err)) return;
       notify('新增學生失敗', 'error');
     }
   };
@@ -1411,6 +1497,7 @@ function Dashboard({ user, teacherId, onLogout }) {
       notify(`成功建立 ${createdCount} 位學生！${skippedMessage}`);
     } catch (err) { 
       console.error(err); 
+      if (reportQuotaError(err)) return;
       notify(createdCount
         ? `已建立 ${createdCount} 位，後續匯入失敗；請修正資料後重新貼上未完成的部分`
         : '批次建立失敗，請檢查網路或 Firestore 存取權限', 'error');
@@ -1441,6 +1528,7 @@ function Dashboard({ user, teacherId, onLogout }) {
       return true;
     } catch (err) {
       console.error(err);
+      if (reportQuotaError(err)) return false;
       notify('更新分數失敗', 'error');
       return false;
     }
@@ -1477,6 +1565,7 @@ function Dashboard({ user, teacherId, onLogout }) {
       notify(`${selectedStudents.length} 位學生已${points > 0 ? `加 ${points}` : `扣 ${Math.abs(points)}`} 分！`);
     } catch (err) { 
       console.error(err); 
+      if (reportQuotaError(err)) return;
       notify('多人更新失敗', 'error');
     }
   };
@@ -1491,6 +1580,7 @@ function Dashboard({ user, teacherId, onLogout }) {
           notify(`已刪除 ${studentName}`);
         } catch (err) { 
           console.error(err);
+          if (reportQuotaError(err)) return;
           notify('刪除失敗', 'error');
         }
       },
@@ -1526,6 +1616,7 @@ function Dashboard({ user, teacherId, onLogout }) {
       notify(`已將 ${matchedStudents.length} 位學生加入第 ${groupId} 組${missingMessage}`);
     } catch (err) {
       console.error(err);
+      if (reportQuotaError(err)) return;
       notify('批次分組失敗，請檢查網路或 Firestore 存取權限', 'error');
     }
   };
@@ -1536,6 +1627,7 @@ function Dashboard({ user, teacherId, onLogout }) {
       await updateDoc(studentRef, { groupId: null });
     } catch (err) {
       console.error(err);
+      reportQuotaError(err);
     }
   };
 
@@ -1569,6 +1661,7 @@ function Dashboard({ user, teacherId, onLogout }) {
       notify(`第 ${groupId} 組已${amount > 0 ? `+${amount}` : amount} 分；個人總積分會依 N 自動換算。`);
     } catch (err) {
       console.error(err);
+      if (reportQuotaError(err)) return;
       notify('小組加扣分失敗', 'error');
     }
   };
@@ -1717,21 +1810,22 @@ function Dashboard({ user, teacherId, onLogout }) {
                 topStudents.map((s, index) => (
                   <div 
                     key={s.id} 
-                    className={`relative p-1.5 rounded-lg border shadow-sm flex flex-col items-center justify-center text-center overflow-hidden h-20 transition hover:shadow-md
+                    className={`relative p-1.5 rounded-lg border shadow-sm flex flex-col items-center justify-center text-center overflow-hidden transition hover:shadow-md
                       ${index === 0 ? 'bg-gradient-to-br from-yellow-50 to-white border-yellow-200 ring-1 ring-yellow-200' : 
                         index === 1 ? 'bg-gradient-to-br from-slate-50 to-white border-slate-200' : 
                         index === 2 ? 'bg-gradient-to-br from-orange-50 to-white border-orange-200' : 'bg-white border-slate-100'}`}
+                    style={{ height: `${5 * honorFontScale}rem` }}
                   >
-                    <div className={`absolute top-0 left-0 px-1.5 py-0.5 text-[9px] font-bold rounded-br z-10 leading-none shadow-sm
+                    <div className={`absolute top-0 left-0 px-1.5 py-0.5 font-bold rounded-br z-10 leading-none shadow-sm
                       ${index === 0 ? 'bg-yellow-400 text-yellow-900' : 
                         index === 1 ? 'bg-slate-300 text-slate-700' : 
                         index === 2 ? 'bg-orange-300 text-orange-800' : 'bg-slate-100 text-slate-500'}`}>
-                      #{index + 1}
+                      <span style={{ fontSize: `${0.5625 * honorFontScale}rem` }}>#{index + 1}</span>
                     </div>
-                    <div className="mt-3 mb-0.5 font-bold text-slate-800 truncate w-full text-xs px-0.5">
+                    <div className="mt-3 mb-0.5 font-bold text-slate-800 truncate w-full px-0.5" style={{ fontSize: `${0.75 * honorFontScale}rem` }}>
                       {s.name}
                     </div>
-                    <div className={`text-base font-black leading-none ${s.totalPoints >= 0 ? 'text-indigo-600' : 'text-red-500'}`}>
+                    <div className={`font-black leading-none ${s.totalPoints >= 0 ? 'text-indigo-600' : 'text-red-500'}`} style={{ fontSize: `${1 * honorFontScale}rem` }}>
                       {formatPoints(s.totalPoints)}
                     </div>
                   </div>
@@ -2001,6 +2095,8 @@ function Dashboard({ user, teacherId, onLogout }) {
           selectedClassId={selectedClassId}
           onBatchImport={handleBatchImport}
           isPrimaryAdmin={(user.email || '').toLowerCase() === PRIMARY_ADMIN_EMAIL}
+          honorFontScale={honorFontScale}
+          onHonorFontScaleChange={changeHonorFontScale}
         />
       )}
     </div>
@@ -2010,7 +2106,7 @@ function Dashboard({ user, teacherId, onLogout }) {
 // --- 教師用學生查詢碼管理 ---
 // 查分入口採「每班一組查詢碼」設計；此處只讓該班教師檢視與變更自己的代碼。
 function StudentQueryModal({ classes, teacherId, selectedClassId, onSelectClass, onClose }) {
-  const { notify } = useUI();
+  const { notify, reportQuotaError } = useUI();
   const [editingId, setEditingId] = useState<string | null>(null);
   const [queryCode, setQueryCode] = useState('');
   const [saving, setSaving] = useState(false);
@@ -2052,6 +2148,7 @@ function StudentQueryModal({ classes, teacherId, selectedClassId, onSelectClass,
       notify('學生查詢碼已更新');
     } catch (error: any) {
       console.error('更新學生查詢碼失敗', error);
+      if (reportQuotaError(error)) return;
       notify(error?.message === 'DUPLICATE_CLASS_CODE' ? '此查詢碼已被其他班級使用' : '更新查詢碼失敗', 'error');
     } finally {
       setSaving(false);
@@ -2307,7 +2404,7 @@ function GroupView({ students, totalGroups, groupPoints, pointDivisor, presets, 
 
 // --- 建立新班級視窗 ---
 function CreateClassModal({ onClose, teacherId, onCreated }) {
-  const { notify } = useUI();
+  const { notify, reportQuotaError } = useUI();
   const [name, setName] = useState('');
   const [classCode, setClassCode] = useState('');
   
@@ -2343,6 +2440,7 @@ function CreateClassModal({ onClose, teacherId, onCreated }) {
       onClose();
     } catch (err) {
       console.error(err);
+      if (reportQuotaError(err)) return;
       notify(err.message === 'DUPLICATE_CLASS_CODE' ? '班級代碼已有人使用，請換一組' : '建立班級失敗', 'error');
     }
   };
@@ -2632,7 +2730,7 @@ function BatchActionModal({ onClose, onConfirm, presets, students }) {
 
 // --- 自訂獎勵項目設定視窗 ---
 function ManagePresetsModal({ onClose, presets, teacherId }) {
-  const { notify, askConfirm } = useUI();
+  const { notify, askConfirm, reportQuotaError } = useUI();
   const [label, setLabel] = useState('');
   const [value, setValue] = useState('');
   const [isRedemption, setIsRedemption] = useState(false);
@@ -2665,6 +2763,7 @@ function ManagePresetsModal({ onClose, presets, teacherId }) {
       notify('預設項目已儲存');
     } catch (error) {
       console.error(error);
+      if (reportQuotaError(error)) return;
       notify('儲存預設項目失敗', 'error');
     }
   };
@@ -2686,6 +2785,7 @@ function ManagePresetsModal({ onClose, presets, teacherId }) {
       notify('已新增獎勵項目');
     } catch (err) {
       console.error(err);
+      if (reportQuotaError(err)) return;
       notify('新增失敗', 'error');
     }
   };
@@ -2700,6 +2800,7 @@ function ManagePresetsModal({ onClose, presets, teacherId }) {
           notify('項目已刪除');
         } catch (err) { 
           console.error(err);
+          if (reportQuotaError(err)) return;
           notify('刪除失敗', 'error');
         }
       },
@@ -2787,8 +2888,8 @@ function ManagePresetsModal({ onClose, presets, teacherId }) {
 }
 
 // --- 系統設定視窗 (一般 / 班級管理 / 備份與匯入 / 安全) ---
-function SettingsModal({ onClose, classId, teacherUid, currentEmail, currentBackupUrl, classes = [], selectedClassId, onBatchImport, isPrimaryAdmin = false }) {
-  const { notify, askConfirm } = useUI();
+function SettingsModal({ onClose, classId, teacherUid, currentEmail, currentBackupUrl, classes = [], selectedClassId, onBatchImport, isPrimaryAdmin = false, honorFontScale = 1, onHonorFontScaleChange }) {
+  const { notify, askConfirm, reportQuotaError } = useUI();
   const [activeTab, setActiveTab] = useState('general'); 
   const [email, setEmail] = useState(currentEmail || '');
   const [backupUrl, setBackupUrl] = useState(currentBackupUrl || '');
@@ -2828,6 +2929,7 @@ function SettingsModal({ onClose, classId, teacherUid, currentEmail, currentBack
       notify('一般設定已儲存！');
     } catch (err) { 
       console.error(err); 
+      if (reportQuotaError(err)) return;
       notify('更新失敗', 'error'); 
     }
     setLoading(false);
@@ -2842,6 +2944,7 @@ function SettingsModal({ onClose, classId, teacherUid, currentEmail, currentBack
       notify('雲端備份設定已儲存！');
     } catch (err) { 
       console.error(err); 
+      if (reportQuotaError(err)) return;
       notify('更新失敗', 'error'); 
     }
     setLoading(false);
@@ -2897,6 +3000,7 @@ function SettingsModal({ onClose, classId, teacherUid, currentEmail, currentBack
       notify('班級資訊已更新');
     } catch (err) {
       console.error(err);
+      if (reportQuotaError(err)) return;
       notify(err.message === 'DUPLICATE_CLASS_CODE' ? '代碼已被其他班級使用' : '修改失敗', 'error');
     }
   };
@@ -2925,6 +3029,7 @@ function SettingsModal({ onClose, classId, teacherUid, currentEmail, currentBack
           notify('班級資料已從網站資料庫刪除；Google 試算表分頁已保留。');
         } catch (err) {
           console.error(err);
+          if (reportQuotaError(err)) return;
           notify('刪除班級失敗，請確認已發布最新 Firestore Rules', 'error');
         }
       },
@@ -2987,6 +3092,7 @@ function SettingsModal({ onClose, classId, teacherUid, currentEmail, currentBack
           notify(approved ? '已核准教師帳號。' : '已駁回教師申請。');
         } catch (err) {
           console.error('審核教師申請失敗', err);
+          if (reportQuotaError(err)) return;
           notify('審核失敗，請確認最新 Firestore Rules 已發布。', 'error');
         }
       },
@@ -3016,12 +3122,21 @@ function SettingsModal({ onClose, classId, teacherUid, currentEmail, currentBack
         <div className="p-6">
           {/* 1. 一般設定 */}
           {activeTab === 'general' && (
-            <form onSubmit={handleUpdateGeneral} className="space-y-4">
+            <form onSubmit={handleUpdateGeneral} className="space-y-5">
               <div>
                 <label className="block text-sm font-medium text-slate-700 mb-1">教師信箱 (用於接收日報表)</label>
                 <div className="relative">
                   <AtSign className="absolute left-3 top-3 w-4 h-4 text-slate-400" />
                   <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} className="w-full pl-9 pr-3 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none" placeholder="example@gmail.com" />
+                </div>
+              </div>
+              <div className="border-t border-slate-200 pt-4">
+                <label className="block text-sm font-medium text-slate-700 mb-1">榮譽榜字體大小</label>
+                <p className="text-xs text-slate-500 mb-3">等比例調整名次、學生姓名與分數；此顯示設定只保存在目前瀏覽器。</p>
+                <div className="flex items-center justify-between gap-3">
+                  <button type="button" onClick={() => onHonorFontScaleChange?.(-0.1)} disabled={honorFontScale <= 0.8} className="w-10 h-10 rounded-lg border border-slate-300 text-xl font-bold text-slate-700 hover:bg-slate-100 disabled:opacity-40" aria-label="縮小榮譽榜字體">−</button>
+                  <div className="flex-1 text-center"><span className="font-bold text-indigo-700 text-lg">{Math.round(honorFontScale * 100)}%</span><p className="text-xs text-slate-400">可調整 80%–160%</p></div>
+                  <button type="button" onClick={() => onHonorFontScaleChange?.(0.1)} disabled={honorFontScale >= 1.6} className="w-10 h-10 rounded-lg border border-slate-300 text-xl font-bold text-slate-700 hover:bg-slate-100 disabled:opacity-40" aria-label="放大榮譽榜字體">+</button>
                 </div>
               </div>
               <div className="pt-4">
