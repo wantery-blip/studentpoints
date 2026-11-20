@@ -69,7 +69,8 @@ import {
   Upload,
   FileInput,
   AlertCircle,
-  Info
+  Info,
+  Sprout
 } from 'lucide-react';
 
 // --- Firebase Configuration & Initialization ---
@@ -435,7 +436,7 @@ export default function App() {
 
   return (
     <UIContext.Provider value={uiValue}>
-      <div className="min-h-screen bg-slate-100 font-sans text-slate-800 relative">
+      <div className="forest-app min-h-screen bg-slate-100 font-sans text-slate-800 relative">
         {!isOnline && (
           <div className="sticky top-0 z-[110] bg-amber-500 px-4 py-2 text-center text-sm font-medium text-amber-950">
             目前離線：資料會在重新連線後同步；請勿關閉尚未完成的操作。
@@ -723,7 +724,7 @@ function StudentDashboard({ classId, onBack, onShowRewardGuide }) {
   }
 
   return (
-    <div className="min-h-screen bg-slate-50 font-sans text-slate-800 p-4 sm:p-6 relative">
+    <div className="forest-student-board min-h-screen bg-slate-50 font-sans text-slate-800 p-4 sm:p-6 relative">
       <button 
         onClick={onBack}
         className="fixed top-4 left-4 z-10 bg-white p-2.5 rounded-full shadow-md text-slate-500 hover:text-slate-800 transition"
@@ -734,10 +735,10 @@ function StudentDashboard({ classId, onBack, onShowRewardGuide }) {
 
       <div className="max-w-5xl mx-auto mt-8">
         {/* 班級標頭 */}
-        <header className="bg-white p-5 rounded-xl shadow-sm mb-6 flex flex-col items-center justify-center text-center relative overflow-hidden">
+        <header className="forest-class-header bg-white p-5 rounded-xl shadow-sm mb-6 flex flex-col items-center justify-center text-center relative overflow-hidden">
           <div className="absolute top-0 left-0 w-full h-1.5 bg-gradient-to-r from-emerald-400 to-teal-500"></div>
-          <div className="bg-emerald-500 p-3 rounded-full mb-3 shadow-md mt-2">
-            <Award className="text-white w-8 h-8" />
+          <div className="forest-title-mark bg-emerald-500 p-3 rounded-full mb-3 shadow-md mt-2">
+            <Sprout className="text-white w-8 h-8" />
           </div>
           <h1 className="text-2xl font-bold text-slate-800 mb-1">
             {classInfo ? classInfo.name : '班級榮譽榜'}
@@ -749,15 +750,15 @@ function StudentDashboard({ classId, onBack, onShowRewardGuide }) {
         </header>
 
         {/* Top 9 榮譽榜 (單列顯示，無座號，前三名金銀銅配色) */}
-        <div className="mb-8 w-full mx-auto">
-          <h3 className="text-sm font-bold text-slate-500 uppercase mb-3 flex items-center justify-center gap-2">
+        <div className="forest-honor-section mb-8 w-full mx-auto">
+          <h3 className="forest-honor-heading text-sm font-bold text-slate-500 uppercase mb-3 flex items-center justify-center gap-2">
             <Crown className="w-4 h-4 text-yellow-500" /> 榮譽榜 (Top 9)
           </h3>
           <div className="grid grid-cols-3 sm:grid-cols-9 gap-1.5">
             {topStudents.map((s, index) => (
               <div 
                 key={s.id} 
-                className={`relative p-1.5 rounded-lg border shadow-sm flex flex-col items-center justify-center text-center overflow-hidden h-20
+                className={`forest-honor-card relative p-1.5 rounded-lg border shadow-sm flex flex-col items-center justify-center text-center overflow-hidden h-20
                   ${index === 0 ? 'bg-gradient-to-br from-yellow-50 to-white border-yellow-200 ring-1 ring-yellow-200' : 
                     index === 1 ? 'bg-gradient-to-br from-slate-50 to-white border-slate-200' : 
                     index === 2 ? 'bg-gradient-to-br from-orange-50 to-white border-orange-200' : 'bg-white border-slate-100'}`}
@@ -1823,12 +1824,16 @@ function Dashboard({ user, teacherId, onLogout }) {
   }
 
   return (
-    <div className="max-w-7xl mx-auto p-4 sm:p-6 pb-20">
+    <div className="forest-dashboard max-w-7xl mx-auto p-4 sm:p-6 pb-20">
       {/* 頂部功能導覽列 */}
-      <header className="flex flex-col xl:flex-row justify-between items-stretch xl:items-center bg-white p-3 sm:p-4 rounded-xl shadow-sm mb-6 gap-4 sticky top-0 z-20 border-b border-slate-100">
+      <header className="forest-topbar flex flex-col xl:flex-row justify-between items-stretch xl:items-center bg-white p-3 sm:p-4 rounded-xl shadow-sm mb-6 gap-4 sticky top-0 z-20 border-b border-slate-100">
         <div className="flex items-center gap-2 sm:gap-3 w-full xl:w-auto min-w-0">
-          <div className="bg-indigo-600 p-2 rounded-lg shadow-md">
-            <School className="text-white w-6 h-6" />
+          <div className="forest-brand-mark bg-indigo-600 p-2 rounded-lg shadow-md">
+            <Sprout className="text-white w-6 h-6" />
+          </div>
+          <div className="forest-brand-copy hidden sm:block shrink-0">
+            <p className="forest-brand-title">合作型積分平台</p>
+            <p className="forest-brand-subtitle">一起累積，每天成長</p>
           </div>
           
           {/* 班級下拉選單與新增班級按鈕 */}
@@ -1948,8 +1953,8 @@ function Dashboard({ user, teacherId, onLogout }) {
       ) : (
         <>
           {/* Top 9 榮譽榜：字體可調整，卡片邊框與尺寸固定。 */}
-          <div className="mb-3 animate-fade-in-up w-full mx-auto">
-            <h3 className="text-sm font-bold text-slate-500 uppercase mb-3 flex items-center justify-center gap-2">
+          <div className="forest-honor-section mb-4 animate-fade-in-up w-full mx-auto">
+            <h3 className="forest-honor-heading text-sm font-bold text-slate-500 uppercase mb-3 flex items-center justify-center gap-2">
               <Crown className="w-4 h-4 text-yellow-500" /> 榮譽榜 (Top 9)
             </h3>
             <div className="grid grid-cols-3 sm:grid-cols-9 gap-1.5">
@@ -1961,7 +1966,7 @@ function Dashboard({ user, teacherId, onLogout }) {
                 topStudents.map((s, index) => (
                   <div 
                     key={s.id} 
-                    className={`relative p-1.5 rounded-lg border shadow-sm flex flex-col items-center justify-center text-center overflow-hidden transition hover:shadow-md
+                    className={`forest-honor-card relative p-1.5 rounded-lg border shadow-sm flex flex-col items-center justify-center text-center overflow-hidden transition hover:shadow-md
                       ${index === 0 ? 'bg-gradient-to-br from-yellow-50 to-white border-yellow-200 ring-1 ring-yellow-200' : 
                         index === 1 ? 'bg-gradient-to-br from-slate-50 to-white border-slate-200' : 
                         index === 2 ? 'bg-gradient-to-br from-orange-50 to-white border-orange-200' : 'bg-white border-slate-100'}`}
@@ -3329,8 +3334,8 @@ function SettingsModal({ onClose, classId, teacherUid, currentEmail, currentBack
 
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50 backdrop-blur-sm">
-      <div className="bg-white rounded-xl shadow-2xl w-full max-w-sm overflow-hidden animate-fade-in-up">
-        <div className="bg-slate-800 p-4 flex justify-between items-center">
+      <div className="forest-settings-modal bg-white rounded-xl shadow-2xl w-full max-w-sm overflow-hidden animate-fade-in-up">
+        <div className="forest-settings-titlebar bg-slate-800 p-4 flex justify-between items-center">
           <h3 className="text-white font-bold flex items-center gap-2">
             <Settings className="w-5 h-5" /> 系統設定
           </h3>
@@ -3338,7 +3343,7 @@ function SettingsModal({ onClose, classId, teacherUid, currentEmail, currentBack
         </div>
         
         {/* 設定分頁標籤 */}
-        <div className="flex border-b border-slate-200 overflow-x-auto no-scrollbar">
+        <div className="forest-settings-tabs flex border-b border-slate-200 overflow-x-auto no-scrollbar">
           <button onClick={() => setActiveTab('general')} className={`flex-shrink-0 px-4 py-3 text-sm font-medium transition ${activeTab === 'general' ? 'text-indigo-600 border-b-2 border-indigo-600 bg-slate-50' : 'text-slate-500 hover:text-slate-700'}`}>一般</button>
           <button onClick={() => setActiveTab('classes')} className={`flex-shrink-0 px-4 py-3 text-sm font-medium transition ${activeTab === 'classes' ? 'text-indigo-600 border-b-2 border-indigo-600 bg-slate-50' : 'text-slate-500 hover:text-slate-700'}`}>班級管理</button>
           <button onClick={() => setActiveTab('backup')} className={`flex-shrink-0 px-4 py-3 text-sm font-medium transition ${activeTab === 'backup' ? 'text-indigo-600 border-b-2 border-indigo-600 bg-slate-50' : 'text-slate-500 hover:text-slate-700'}`}>備份</button>
@@ -3348,7 +3353,7 @@ function SettingsModal({ onClose, classId, teacherUid, currentEmail, currentBack
           {isPrimaryAdmin && <button onClick={() => setActiveTab('teacherRequests')} className={`flex-shrink-0 px-4 py-3 text-sm font-medium transition ${activeTab === 'teacherRequests' ? 'text-indigo-600 border-b-2 border-indigo-600 bg-slate-50' : 'text-slate-500 hover:text-slate-700'}`}>教師審核{teacherRequests.length ? ` (${teacherRequests.length})` : ''}</button>}
         </div>
 
-        <div className="p-6">
+        <div className="forest-settings-content p-6">
           {/* 1. 一般設定 */}
           {activeTab === 'general' && (
             <form onSubmit={handleUpdateGeneral} className="space-y-5">
@@ -3700,7 +3705,7 @@ type CompactStudentCardProps = {
 const CompactStudentCard = React.memo(function CompactStudentCard({ student, selected, onSelect, onShowHistory }: CompactStudentCardProps) {
   const score = student.totalPoints ?? student.points;
   const activate = () => onSelect(student);
-  return <div role="button" tabIndex={0} onClick={activate} onKeyDown={event => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); activate(); } }} className={`min-h-24 rounded-xl border p-2 flex flex-col justify-between cursor-pointer transition shadow-sm ${selected ? 'border-indigo-500 ring-2 ring-indigo-200 bg-indigo-50' : 'border-slate-200 bg-white hover:border-indigo-300 hover:shadow-md'}`} title="點選後使用上方共同加扣分面板">
+  return <div role="button" tabIndex={0} onClick={activate} onKeyDown={event => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); activate(); } }} className={`forest-student-card min-h-24 rounded-xl border p-2 flex flex-col justify-between cursor-pointer transition shadow-sm ${selected ? 'border-indigo-500 ring-2 ring-indigo-200 bg-indigo-50' : 'border-slate-200 bg-white hover:border-indigo-300 hover:shadow-md'}`} title="點選後使用上方共同加扣分面板">
     <div className="flex items-center justify-center gap-1 text-indigo-700 font-extrabold text-center"><span className="text-base shrink-0">{student.studentNumber || '#'}</span><button type="button" onClick={event => { event.stopPropagation(); onShowHistory(student); }} className="max-w-[72%] truncate text-center text-base hover:underline focus:outline-none" title="查看加扣分紀錄">{student.name}</button></div>
     <div className={`text-center text-2xl sm:text-3xl font-black leading-none ${score >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>{formatPoints(score)}</div>
   </div>;
