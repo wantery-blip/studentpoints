@@ -652,7 +652,7 @@ function StudentDashboard({ classId, onBack }) {
 
   // 計算積分最高的前 8 名學生
   const topStudents = useMemo(() => {
-    return [...displayedStudents].sort((a, b) => b.totalPoints - a.totalPoints).slice(0, 8);
+    return [...displayedStudents].sort((a, b) => b.totalPoints - a.totalPoints).slice(0, 9);
   }, [displayedStudents]);
 
   if (loadError) {
@@ -695,12 +695,12 @@ function StudentDashboard({ classId, onBack }) {
           <p className="text-slate-500 text-sm">優良點數即時查詢（唯讀模式）</p>
         </header>
 
-        {/* Top 8 榮譽榜 (單列顯示，無座號，前三名金銀銅配色) */}
+        {/* Top 9 榮譽榜 (單列顯示，無座號，前三名金銀銅配色) */}
         <div className="mb-8 w-full mx-auto">
           <h3 className="text-sm font-bold text-slate-500 uppercase mb-3 flex items-center justify-center gap-2">
-            <Crown className="w-4 h-4 text-yellow-500" /> 榮譽榜 (Top 8)
+            <Crown className="w-4 h-4 text-yellow-500" /> 榮譽榜 (Top 9)
           </h3>
-          <div className="grid grid-cols-4 sm:grid-cols-8 gap-1.5">
+          <div className="grid grid-cols-3 sm:grid-cols-9 gap-1.5">
             {topStudents.map((s, index) => (
               <div 
                 key={s.id} 
@@ -1024,6 +1024,7 @@ function Dashboard({ user, teacherId, onLogout }) {
   const [showDailyPrompt, setShowDailyPrompt] = useState(false);
   const [historyStudent, setHistoryStudent] = useState<any>(null);
   const [historyGroupId, setHistoryGroupId] = useState<number | null>(null);
+  const [selectedScoreStudent, setSelectedScoreStudent] = useState<any>(null);
   const [honorFontScale, setHonorFontScale] = useState(() => {
     const stored = Number(readLocal(`honor_font_scale_${teacherId}`));
     return Number.isFinite(stored) && stored >= 0.8 && stored <= 1.6 ? stored : 1;
@@ -1178,7 +1179,7 @@ function Dashboard({ user, teacherId, onLogout }) {
     totalPoints: totalPointsFor(student, groupPoints, groupPointDivisor)
   })), [students, groupPoints, groupPointDivisor]);
   const topStudents = useMemo(() => {
-    return [...displayedStudents].sort((a, b) => b.totalPoints - a.totalPoints).slice(0, 8);
+    return [...displayedStudents].sort((a, b) => b.totalPoints - a.totalPoints).slice(0, 9);
   }, [displayedStudents]);
 
   // 切換班級
@@ -1577,6 +1578,7 @@ function Dashboard({ user, teacherId, onLogout }) {
       async () => {
         try {
           await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', 'student_points', studentId));
+          setSelectedScoreStudent(current => current?.id === studentId ? null : current);
           notify(`已刪除 ${studentName}`);
         } catch (err) { 
           console.error(err);
@@ -1587,6 +1589,27 @@ function Dashboard({ user, teacherId, onLogout }) {
       true
     );
   }, [askConfirm, notify]);
+
+  const updateStudentDetails = useCallback(async (studentId, name, studentNumber) => {
+    const nextName = name.trim();
+    const nextNumber = studentNumber.trim();
+    if (!nextName) {
+      notify('學生姓名不可空白', 'error');
+      return false;
+    }
+    try {
+      await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'student_points', studentId), {
+        name: nextName, studentNumber: nextNumber
+      });
+      notify('學生資料已更新');
+      return true;
+    } catch (err) {
+      console.error(err);
+      if (reportQuotaError(err)) return false;
+      notify('修改學生資料失敗', 'error');
+      return false;
+    }
+  }, [notify, reportQuotaError]);
 
   // --- 小組分組與小組連動加扣分邏輯 ---
   const handleAssignGroup = async (seatInput: string, groupId: number) => {
@@ -1796,12 +1819,12 @@ function Dashboard({ user, teacherId, onLogout }) {
         </div>
       ) : (
         <>
-          {/* Top 8 榮譽榜 (單列 8 欄排版，寬度與上方導覽列一致，無座號文字) */}
-          <div className="mb-6 animate-fade-in-up w-full mx-auto">
+          {/* Top 9 榮譽榜：字體可調整，卡片邊框與尺寸固定。 */}
+          <div className="mb-3 animate-fade-in-up w-full mx-auto">
             <h3 className="text-sm font-bold text-slate-500 uppercase mb-3 flex items-center justify-center gap-2">
-              <Crown className="w-4 h-4 text-yellow-500" /> 榮譽榜 (Top 8)
+              <Crown className="w-4 h-4 text-yellow-500" /> 榮譽榜 (Top 9)
             </h3>
-            <div className="grid grid-cols-4 sm:grid-cols-8 gap-1.5">
+            <div className="grid grid-cols-3 sm:grid-cols-9 gap-1.5">
               {topStudents.length === 0 ? (
                 <div className="col-span-full text-center py-6 text-slate-400 bg-white rounded-xl border border-dashed border-slate-300">
                   此班級尚無學生資料
@@ -1814,7 +1837,7 @@ function Dashboard({ user, teacherId, onLogout }) {
                       ${index === 0 ? 'bg-gradient-to-br from-yellow-50 to-white border-yellow-200 ring-1 ring-yellow-200' : 
                         index === 1 ? 'bg-gradient-to-br from-slate-50 to-white border-slate-200' : 
                         index === 2 ? 'bg-gradient-to-br from-orange-50 to-white border-orange-200' : 'bg-white border-slate-100'}`}
-                    style={{ height: `${5 * honorFontScale}rem` }}
+                    style={{ height: '5rem' }}
                   >
                     <div className={`absolute top-0 left-0 px-1.5 py-0.5 font-bold rounded-br z-10 leading-none shadow-sm
                       ${index === 0 ? 'bg-yellow-400 text-yellow-900' : 
@@ -1834,6 +1857,15 @@ function Dashboard({ user, teacherId, onLogout }) {
             </div>
           </div>
 
+          {dashboardView === 'list' && (
+            <SharedScorePanel
+              student={selectedScoreStudent}
+              presets={actionPresets}
+              onUpdatePoints={updatePoints}
+              onClear={() => setSelectedScoreStudent(null)}
+            />
+          )}
+
           {/* 切換顯示：列表模式 vs 小組模式 */}
           {dashboardView === 'list' ? (
             students.length === 0 ? (
@@ -1843,14 +1875,13 @@ function Dashboard({ user, teacherId, onLogout }) {
                 <p className="text-slate-400 text-sm mt-1">點擊上方「學生」按鈕新增名單</p>
               </div>
             ) : (
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-4">
+              <div className="grid grid-cols-3 sm:grid-cols-5 lg:grid-cols-7 xl:grid-cols-9 gap-2">
                 {displayedStudents.map(student => (
-                  <StudentCard 
+                  <CompactStudentCard
                     key={student.id} 
                     student={student} 
-                    presets={actionPresets}
-                    onUpdatePoints={updatePoints}
-                    onDelete={deleteStudent}
+                    selected={selectedScoreStudent?.id === student.id}
+                    onSelect={setSelectedScoreStudent}
                     onShowHistory={setHistoryStudent}
                   />
                 ))}
@@ -2093,6 +2124,10 @@ function Dashboard({ user, teacherId, onLogout }) {
           currentBackupUrl={backupUrl}
           classes={classes}
           selectedClassId={selectedClassId}
+          selectedClassName={selectedClass?.name || ''}
+          students={students}
+          onUpdateStudent={updateStudentDetails}
+          onDeleteStudent={deleteStudent}
           onBatchImport={handleBatchImport}
           isPrimaryAdmin={(user.email || '').toLowerCase() === PRIMARY_ADMIN_EMAIL}
           honorFontScale={honorFontScale}
@@ -2888,7 +2923,7 @@ function ManagePresetsModal({ onClose, presets, teacherId }) {
 }
 
 // --- 系統設定視窗 (一般 / 班級管理 / 備份與匯入 / 安全) ---
-function SettingsModal({ onClose, classId, teacherUid, currentEmail, currentBackupUrl, classes = [], selectedClassId, onBatchImport, isPrimaryAdmin = false, honorFontScale = 1, onHonorFontScaleChange }) {
+function SettingsModal({ onClose, classId, teacherUid, currentEmail, currentBackupUrl, classes = [], selectedClassId, selectedClassName, students = [], onUpdateStudent, onDeleteStudent, onBatchImport, isPrimaryAdmin = false, honorFontScale = 1, onHonorFontScaleChange }) {
   const { notify, askConfirm, reportQuotaError } = useUI();
   const [activeTab, setActiveTab] = useState('general'); 
   const [email, setEmail] = useState(currentEmail || '');
@@ -2904,6 +2939,10 @@ function SettingsModal({ onClose, classId, teacherUid, currentEmail, currentBack
   const [loading, setLoading] = useState(false);
   const [importText, setImportText] = useState('');
   const [teacherRequests, setTeacherRequests] = useState<any[]>([]);
+  const [editingStudentId, setEditingStudentId] = useState<string | null>(null);
+  const [editingStudentName, setEditingStudentName] = useState('');
+  const [editingStudentNumber, setEditingStudentNumber] = useState('');
+  const [savingStudent, setSavingStudent] = useState(false);
 
   useEffect(() => {
     if (!isPrimaryAdmin) { setTeacherRequests([]); return undefined; }
@@ -3062,6 +3101,20 @@ function SettingsModal({ onClose, classId, teacherUid, currentEmail, currentBack
     setImportText('');
   };
 
+  const beginStudentEdit = (student) => {
+    setEditingStudentId(student.id);
+    setEditingStudentName(student.name || '');
+    setEditingStudentNumber(student.studentNumber || '');
+  };
+
+  const saveStudent = async (student) => {
+    setSavingStudent(true);
+    try {
+      const saved = await onUpdateStudent?.(student.id, editingStudentName, editingStudentNumber);
+      if (saved) setEditingStudentId(null);
+    } finally { setSavingStudent(false); }
+  };
+
   const reviewTeacherRequest = (requestItem, decision) => {
     const approved = decision === 'approved';
     askConfirm(
@@ -3115,6 +3168,7 @@ function SettingsModal({ onClose, classId, teacherUid, currentEmail, currentBack
           <button onClick={() => setActiveTab('general')} className={`flex-shrink-0 px-4 py-3 text-sm font-medium transition ${activeTab === 'general' ? 'text-indigo-600 border-b-2 border-indigo-600 bg-slate-50' : 'text-slate-500 hover:text-slate-700'}`}>一般</button>
           <button onClick={() => setActiveTab('classes')} className={`flex-shrink-0 px-4 py-3 text-sm font-medium transition ${activeTab === 'classes' ? 'text-indigo-600 border-b-2 border-indigo-600 bg-slate-50' : 'text-slate-500 hover:text-slate-700'}`}>班級管理</button>
           <button onClick={() => setActiveTab('backup')} className={`flex-shrink-0 px-4 py-3 text-sm font-medium transition ${activeTab === 'backup' ? 'text-indigo-600 border-b-2 border-indigo-600 bg-slate-50' : 'text-slate-500 hover:text-slate-700'}`}>備份</button>
+          <button onClick={() => setActiveTab('roster')} className={`flex-shrink-0 px-4 py-3 text-sm font-medium transition ${activeTab === 'roster' ? 'text-indigo-600 border-b-2 border-indigo-600 bg-slate-50' : 'text-slate-500 hover:text-slate-700'}`}>刪除名單</button>
           <button onClick={() => setActiveTab('security')} className={`flex-shrink-0 px-4 py-3 text-sm font-medium transition ${activeTab === 'security' ? 'text-indigo-600 border-b-2 border-indigo-600 bg-slate-50' : 'text-slate-500 hover:text-slate-700'}`}>安全</button>
           {isPrimaryAdmin && <button onClick={() => setActiveTab('teacherRequests')} className={`flex-shrink-0 px-4 py-3 text-sm font-medium transition ${activeTab === 'teacherRequests' ? 'text-indigo-600 border-b-2 border-indigo-600 bg-slate-50' : 'text-slate-500 hover:text-slate-700'}`}>教師審核{teacherRequests.length ? ` (${teacherRequests.length})` : ''}</button>}
         </div>
@@ -3220,7 +3274,19 @@ function SettingsModal({ onClose, classId, teacherUid, currentEmail, currentBack
             </div>
           )}
 
-          {/* 4. 帳號安全 (修改密碼) */}
+          {/* 4. 刪除名單：目前選取班級的學生可改姓名、改座號或刪除。 */}
+          {activeTab === 'roster' && (
+            <div className="space-y-3 max-h-[360px] overflow-y-auto">
+              <p className="text-xs text-slate-500">目前班級：<span className="font-bold text-slate-700">{selectedClassName || '未選擇'}</span>。可在此修改姓名、座號，或刪除學生資料。</p>
+              {students.length === 0 ? <p className="py-8 text-center text-sm text-slate-400">目前班級尚無學生名單</p> : students.map(student => (
+                <div key={student.id} className="rounded-lg border border-slate-200 bg-slate-50 p-3">
+                  {editingStudentId === student.id ? <div className="space-y-2"><label className="text-xs text-slate-500">座號</label><input value={editingStudentNumber} onChange={event => setEditingStudentNumber(event.target.value)} className="w-full px-2 py-1.5 border rounded bg-white" placeholder="座號" /><label className="text-xs text-slate-500">姓名</label><input value={editingStudentName} onChange={event => setEditingStudentName(event.target.value)} className="w-full px-2 py-1.5 border rounded bg-white" placeholder="姓名" /><div className="flex justify-end gap-2 pt-1"><button onClick={() => setEditingStudentId(null)} className="px-3 py-1.5 text-xs text-slate-600">取消</button><button disabled={savingStudent} onClick={() => saveStudent(student)} className="px-3 py-1.5 text-xs font-bold text-white bg-indigo-600 rounded disabled:opacity-50">{savingStudent ? '儲存中…' : '儲存'}</button></div></div> : <div className="flex items-center gap-2"><div className="min-w-0 flex-1"><p className="font-bold text-slate-800 truncate">{student.studentNumber || '未編號'}　{student.name}</p><p className="text-xs text-slate-500 mt-1">目前總分：{formatPoints(student.totalPoints ?? student.points)}</p></div><button onClick={() => beginStudentEdit(student)} className="p-2 rounded text-slate-500 hover:text-indigo-700 hover:bg-indigo-50" title="修改姓名或座號"><Pencil className="w-4 h-4" /></button><button onClick={() => onDeleteStudent?.(student.id, student.name)} className="p-2 rounded text-slate-500 hover:text-red-600 hover:bg-red-50" title="刪除學生資料"><Trash2 className="w-4 h-4" /></button></div>}
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* 5. 帳號安全 (修改密碼) */}
           {activeTab === 'security' && (
             <form onSubmit={handleUpdatePassword} className="space-y-4">
               <div><label className="block text-sm font-medium text-slate-700 mb-1">舊密碼</label><input type="password" value={oldPassword} onChange={(e) => setOldPassword(e.target.value)} className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none"/></div>
@@ -3371,7 +3437,69 @@ function StudentHistoryModal({ student, classId, onClose }) {
   );
 }
 
-// --- 學生個人點數操作卡片 (上 1/3 資訊區，下 2/3 快速加扣分按鈕區) ---
+// --- 共用加扣分面板與精簡學生卡 ---
+function SharedScorePanel({ student, presets, onUpdatePoints, onClear }) {
+  const [customOpen, setCustomOpen] = useState(false);
+  const [customPoints, setCustomPoints] = useState('');
+  const [customReason, setCustomReason] = useState('');
+  const [updating, setUpdating] = useState(false);
+
+  const applyScore = async (points, reason) => {
+    if (!student || updating) return;
+    setUpdating(true);
+    try {
+      const success = await onUpdatePoints(student, points, reason);
+      if (success) setCustomOpen(false);
+    } finally { setUpdating(false); }
+  };
+
+  const submitCustom = async (event) => {
+    event.preventDefault();
+    const points = Number(customPoints);
+    if (!Number.isFinite(points) || points === 0) return;
+    await applyScore(points, customReason.trim() || '手動調整');
+    setCustomPoints('');
+    setCustomReason('');
+  };
+
+  return (
+    <section className="mb-5 rounded-xl border border-indigo-100 bg-white shadow-sm min-h-20 p-2 sm:p-3" aria-label="共用加扣分面板">
+      <div className="flex flex-col lg:flex-row lg:items-center gap-2">
+        <div className="shrink-0 flex items-center justify-between gap-2 px-2">
+          <div><p className="text-xs text-slate-400">共同加扣分</p><p className="font-bold text-indigo-800 text-sm">{student ? `${student.studentNumber || '未編號'} ${student.name}` : '請先點選學生'}</p></div>
+          {student && <button onClick={onClear} className="text-xs text-slate-400 hover:text-slate-700 px-2 py-1 rounded hover:bg-slate-100">取消選取</button>}
+        </div>
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 flex-1">
+          {presets.map(preset => (
+            <button key={preset.id} disabled={!student || updating} onClick={() => applyScore(preset.value, preset.isRedemption ? `兌獎：${preset.label}` : preset.label)} className={`min-h-12 rounded-lg border px-2 text-sm font-bold transition disabled:opacity-40 disabled:cursor-not-allowed ${preset.isRedemption ? 'border-amber-200 text-amber-800 bg-amber-50 hover:bg-amber-100' : preset.value > 0 ? 'border-blue-200 text-blue-700 bg-blue-50 hover:bg-blue-100' : 'border-pink-200 text-pink-700 bg-pink-50 hover:bg-pink-100'}`}>
+              <span className="block text-base leading-none">{preset.isRedemption ? `兌 −${Math.abs(preset.value)}` : preset.value > 0 ? `+${preset.value}` : preset.value}</span><span className="block mt-1 truncate">{preset.label}</span>
+            </button>
+          ))}
+          <button disabled={!student || updating} onClick={() => setCustomOpen(true)} className="min-h-12 rounded-lg border border-dashed border-slate-300 text-slate-600 text-sm font-bold hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed"><Edit3 className="w-4 h-4 inline mr-1" />自訂</button>
+        </div>
+      </div>
+      {customOpen && student && <form onSubmit={submitCustom} className="mt-3 flex flex-col sm:flex-row gap-2 border-t pt-3"><input autoFocus required type="number" value={customPoints} onChange={event => setCustomPoints(event.target.value)} placeholder="分數，例如 5 或 -3" className="px-3 py-2 border rounded-lg sm:w-44" /><input value={customReason} onChange={event => setCustomReason(event.target.value)} placeholder="原因（選填）" className="px-3 py-2 border rounded-lg flex-1" /><button className="px-4 py-2 bg-indigo-600 text-white font-bold rounded-lg">確認</button><button type="button" onClick={() => setCustomOpen(false)} className="px-3 py-2 text-slate-600">取消</button></form>}
+    </section>
+  );
+}
+
+type CompactStudentCardProps = {
+  student: any;
+  selected: boolean;
+  onSelect: (student: any) => void;
+  onShowHistory: (student: any) => void;
+};
+
+const CompactStudentCard = React.memo(function CompactStudentCard({ student, selected, onSelect, onShowHistory }: CompactStudentCardProps) {
+  const score = student.totalPoints ?? student.points;
+  const activate = () => onSelect(student);
+  return <div role="button" tabIndex={0} onClick={activate} onKeyDown={event => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); activate(); } }} className={`min-h-24 rounded-xl border p-2 flex flex-col justify-between cursor-pointer transition shadow-sm ${selected ? 'border-indigo-500 ring-2 ring-indigo-200 bg-indigo-50' : 'border-slate-200 bg-white hover:border-indigo-300 hover:shadow-md'}`} title="點選後使用上方共同加扣分面板">
+    <div className="flex items-start justify-between gap-1 text-indigo-700 font-extrabold"><span className="text-base">{student.studentNumber || '#'}</span><button type="button" onClick={event => { event.stopPropagation(); onShowHistory(student); }} className="max-w-[72%] truncate text-right text-base hover:underline focus:outline-none" title="查看加扣分紀錄">{student.name}</button></div>
+    <div className={`text-right text-2xl sm:text-3xl font-black leading-none ${score >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>{formatPoints(score)}</div>
+  </div>;
+});
+
+// --- 舊版學生個人點數操作卡片（保留元件供相容，不再於主列表呈現） ---
 type StudentCardProps = {
   student: any;
   onUpdatePoints: (student: any, change: number, reason?: string) => Promise<boolean>;
