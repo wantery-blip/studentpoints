@@ -1,0 +1,2077 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>好運扭蛋機 - 班級溫暖獎勵卡</title>
+  <!-- 載入可愛圓體字型 -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Zen+Maru+Gothic:wght@500;700;900&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg-sky: #FFF9E6;
+      --bg-dots: #FFE8A3;
+      --primary-red: #FF5964;
+      --primary-red-dark: #D93843;
+      --primary-yellow: #FFCA3A;
+      --primary-yellow-dark: #E0A800;
+      --primary-blue: #38B6FF;
+      --primary-green: #52D196;
+      --primary-purple: #B589D6;
+      --text-dark: #2D3142;
+      --card-shadow: 0 12px 28px rgba(45, 49, 66, 0.14);
+    }
+
+    * {
+      box-sizing: border-box;
+      user-select: none;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    body {
+      margin: 0;
+      padding: 0;
+      font-family: 'Zen Maru Gothic', 'Microsoft JhengHei', 'PingFang TC', sans-serif;
+      background-color: var(--bg-sky);
+      background-image: radial-gradient(var(--bg-dots) 2.5px, transparent 2.5px), radial-gradient(#FFD1DC 2px, var(--bg-sky) 2px);
+      background-size: 36px 36px;
+      background-position: 0 0, 18px 18px;
+      color: var(--text-dark);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      overflow-x: hidden;
+    }
+
+    /* 頂部標題區 */
+    header {
+      background: linear-gradient(135deg, #FF758F 0%, #FFCA3A 50%, #4CC9F0 100%);
+      padding: 14px 24px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      box-shadow: 0 6px 0 rgba(0, 0, 0, 0.08);
+      position: relative;
+      z-index: 20;
+    }
+
+    .header-spacer {
+      width: 140px;
+      display: flex;
+      gap: 8px;
+    }
+
+    .title-wrap {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 12px;
+      text-align: center;
+    }
+
+    .title-text {
+      font-size: clamp(2rem, 4vw, 3.1rem);
+      font-weight: 900;
+      color: #FFFFFF;
+      letter-spacing: 4px;
+      margin: 0;
+      text-shadow:
+        -3px -3px 0 #2D3142,
+         3px -3px 0 #2D3142,
+        -3px  3px 0 #2D3142,
+         3px  3px 0 #2D3142,
+         0px  6px 0 #2D3142;
+      animation: floatTitle 3s ease-in-out infinite;
+    }
+
+    @keyframes floatTitle {
+      0%, 100% { transform: translateY(0) rotate(-1deg); }
+      50% { transform: translateY(-4px) rotate(1deg); }
+    }
+
+    .star-deco {
+      font-size: clamp(1.6rem, 3vw, 2.4rem);
+      filter: drop-shadow(0 3px 0 #2D3142);
+      animation: spinStar 6s linear infinite;
+    }
+
+    @keyframes spinStar {
+      0% { transform: rotate(0deg) scale(1); }
+      50% { transform: rotate(180deg) scale(1.15); }
+      100% { transform: rotate(360deg) scale(1); }
+    }
+
+    .header-controls {
+      display: flex;
+      gap: 10px;
+      align-items: center;
+    }
+
+    .icon-btn {
+      background: #FFFFFF;
+      border: 3px solid #2D3142;
+      border-radius: 999px;
+      padding: 8px 14px;
+      font-family: inherit;
+      font-weight: 900;
+      font-size: 0.95rem;
+      color: #2D3142;
+      cursor: pointer;
+      box-shadow: 0 4px 0 #2D3142;
+      transition: transform 0.1s, box-shadow 0.1s;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .icon-btn:active {
+      transform: translateY(3px);
+      box-shadow: 0 1px 0 #2D3142;
+    }
+
+    /* 主畫面左右不平分佈局：左 42% / 右 58% */
+    main {
+      flex: 1;
+      display: flex;
+      flex-direction: row;
+      width: 100%;
+      max-width: 1440px;
+      margin: 0 auto;
+      padding: 18px 24px 24px;
+      gap: 24px;
+      align-items: stretch;
+    }
+
+    /* 左側：扭蛋機區 (42%) */
+    .left-panel {
+      flex: 0 0 42%;
+      background: rgba(255, 255, 255, 0.85);
+      border: 4px solid #2D3142;
+      border-radius: 32px;
+      box-shadow: 0 10px 0 rgba(45, 49, 66, 0.12);
+      padding: 18px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: space-between;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .machine-stage {
+      position: relative;
+      width: 100%;
+      max-width: 360px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      margin: auto 0;
+    }
+
+    #gacha-svg {
+      width: 100%;
+      height: auto;
+      max-height: 460px;
+      filter: drop-shadow(0 10px 14px rgba(0,0,0,0.12));
+    }
+
+    .machine-shake {
+      animation: machineShake 0.65s cubic-bezier(.36,.07,.19,.97) both;
+    }
+
+    @keyframes machineShake {
+      10%, 90% { transform: translate3d(-3px, 0, 0) rotate(-1deg); }
+      20%, 80% { transform: translate3d(5px, 0, 0) rotate(1.5deg); }
+      30%, 50%, 70% { transform: translate3d(-7px, -2px, 0) rotate(-2deg); }
+      40%, 60% { transform: translate3d(7px, 2px, 0) rotate(2deg); }
+    }
+
+    .knob-group {
+      cursor: pointer;
+      transform-origin: 200px 355px;
+      transition: transform 0.6s cubic-bezier(0.34, 1.56, 0.64, 1);
+    }
+
+    .knob-group:hover {
+      filter: brightness(1.06);
+    }
+
+    /* 掉出的扭蛋動畫層 */
+    .dropped-capsule-overlay {
+      position: absolute;
+      inset: 0;
+      background: rgba(255, 249, 230, 0.88);
+      backdrop-filter: blur(4px);
+      display: none;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      z-index: 15;
+      border-radius: 28px;
+      padding: 20px;
+      text-align: center;
+    }
+
+    .dropped-capsule-overlay.active {
+      display: flex;
+      animation: fadeIn 0.25s ease-out;
+    }
+
+    @keyframes fadeIn {
+      from { opacity: 0; }
+      to { opacity: 1; }
+    }
+
+    .big-capsule {
+      width: 170px;
+      height: 170px;
+      cursor: pointer;
+      animation: capsulePopBounce 0.85s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+      filter: drop-shadow(0 14px 18px rgba(0,0,0,0.2));
+    }
+
+    .big-capsule.wobble {
+      animation: capsuleWobble 0.9s ease-in-out infinite;
+    }
+
+    @keyframes capsulePopBounce {
+      0% { transform: scale(0.2) translateY(-120px) rotate(-180deg); opacity: 0; }
+      60% { transform: scale(1.12) translateY(10px) rotate(15deg); opacity: 1; }
+      80% { transform: scale(0.95) translateY(-6px) rotate(-8deg); }
+      100% { transform: scale(1) translateY(0) rotate(0deg); }
+    }
+
+    @keyframes capsuleWobble {
+      0%, 100% { transform: rotate(-6deg) scale(1.03); }
+      50% { transform: rotate(6deg) scale(1.08); }
+    }
+
+    .capsule-hint {
+      margin-top: 16px;
+      font-size: 1.35rem;
+      font-weight: 900;
+      color: #FF5964;
+      background: #FFF;
+      padding: 8px 20px;
+      border-radius: 999px;
+      border: 3px solid #2D3142;
+      box-shadow: 0 4px 0 #2D3142;
+      animation: pulseHint 1s infinite;
+    }
+
+    @keyframes pulseHint {
+      0%, 100% { transform: scale(1); }
+      50% { transform: scale(1.06); }
+    }
+
+    /* 轉動大按鈕 */
+    .spin-btn {
+      width: 90%;
+      max-width: 320px;
+      background: linear-gradient(180deg, #FF6B6B 0%, #FF4757 100%);
+      color: #FFFFFF;
+      border: 4px solid #2D3142;
+      border-radius: 999px;
+      padding: 16px 24px;
+      font-family: inherit;
+      font-size: clamp(1.4rem, 2.2vw, 1.85rem);
+      font-weight: 900;
+      letter-spacing: 2px;
+      cursor: pointer;
+      box-shadow: 0 8px 0 #2D3142, inset 0 4px 0 rgba(255,255,255,0.4);
+      transition: all 0.12s ease;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+      margin-top: 10px;
+    }
+
+    .spin-btn:hover:not(:disabled) {
+      transform: translateY(-2px);
+      box-shadow: 0 10px 0 #2D3142, inset 0 4px 0 rgba(255,255,255,0.4);
+      filter: brightness(1.05);
+    }
+
+    .spin-btn:active:not(:disabled) {
+      transform: translateY(6px);
+      box-shadow: 0 2px 0 #2D3142;
+    }
+
+    .spin-btn:disabled {
+      background: #CBD5E1;
+      color: #64748B;
+      cursor: not-allowed;
+      transform: translateY(4px);
+      box-shadow: 0 4px 0 #2D3142;
+    }
+
+    /* 右側：卡片展示與紀錄區 (58%) */
+    .right-panel {
+      flex: 1;
+      background: rgba(255, 255, 255, 0.9);
+      border: 4px solid #2D3142;
+      border-radius: 32px;
+      box-shadow: 0 10px 0 rgba(45, 49, 66, 0.12);
+      padding: 20px 24px;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      position: relative;
+    }
+
+    .card-display-area {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      position: relative;
+      min-height: 410px;
+    }
+
+    /* 4.5 : 6.3 比例卡片容器 */
+    .card-stage {
+      width: 100%;
+      max-width: 315px;
+      aspect-ratio: 45 / 63;
+      perspective: 1200px;
+      position: relative;
+    }
+
+    .card-inner {
+      width: 100%;
+      height: 100%;
+      position: relative;
+      transition: transform 0.8s cubic-bezier(0.34, 1.56, 0.64, 1);
+      transform-style: preserve-3d;
+    }
+
+    .card-inner.is-flipped {
+      transform: rotateY(180deg);
+    }
+
+    .card-face {
+      position: absolute;
+      inset: 0;
+      backface-visibility: hidden;
+      border-radius: 26px;
+      overflow: hidden;
+    }
+
+    /* 等待開獎卡背 */
+    .card-back {
+      background: linear-gradient(135deg, #4CC9F0 0%, #4361EE 100%);
+      border: 8px solid #FFCA3A;
+      box-shadow: 0 12px 24px rgba(0,0,0,0.16), inset 0 0 0 4px #2D3142;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+      text-align: center;
+      color: #FFF;
+    }
+
+    .card-back-dashed {
+      width: 100%;
+      height: 100%;
+      border: 4px dashed rgba(255, 255, 255, 0.85);
+      border-radius: 16px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 14px;
+      padding: 16px;
+    }
+
+    .card-back-icon {
+      font-size: 4.5rem;
+      animation: bounceSlow 2s ease-in-out infinite;
+      filter: drop-shadow(0 6px 0 rgba(0,0,0,0.2));
+    }
+
+    @keyframes bounceSlow {
+      0%, 100% { transform: translateY(0); }
+      50% { transform: translateY(-10px); }
+    }
+
+    .card-back-title {
+      font-size: 1.65rem;
+      font-weight: 900;
+      letter-spacing: 2px;
+      text-shadow: 0 3px 0 #2D3142;
+    }
+
+    .card-back-sub {
+      font-size: 1.05rem;
+      font-weight: 700;
+      background: rgba(255, 255, 255, 0.22);
+      padding: 6px 14px;
+      border-radius: 999px;
+    }
+
+    /* 抽中的獎勵卡正面（完全還原用戶設計風格） */
+    .card-front {
+      transform: rotateY(180deg);
+      background-color: var(--card-border-color, #B8E2D8);
+      padding: 14px;
+      box-shadow: 0 14px 30px rgba(45, 49, 66, 0.22);
+      display: flex;
+      flex-direction: column;
+    }
+
+    /* 稀有卡金色光暈特效 */
+    .card-front.is-rare {
+      box-shadow:
+        0 0 0 4px #FFD700,
+        0 0 28px 8px rgba(255, 215, 0, 0.75),
+        0 14px 30px rgba(45, 49, 66, 0.25);
+      animation: rareGlow 2s ease-in-out infinite alternate;
+    }
+
+    @keyframes rareGlow {
+      from {
+        box-shadow: 0 0 0 4px #FFD700, 0 0 18px 4px rgba(255, 215, 0, 0.65), 0 14px 30px rgba(45, 49, 66, 0.25);
+      }
+      to {
+        box-shadow: 0 0 0 5px #FFF066, 0 0 36px 12px rgba(255, 193, 7, 0.95), 0 14px 30px rgba(45, 49, 66, 0.25);
+      }
+    }
+
+    .rare-badge {
+      position: absolute;
+      top: 10px;
+      right: 10px;
+      background: linear-gradient(135deg, #FFD700 0%, #FFA500 100%);
+      color: #2D3142;
+      font-weight: 900;
+      font-size: 0.82rem;
+      padding: 4px 10px;
+      border-radius: 999px;
+      border: 2.5px solid #2D3142;
+      box-shadow: 0 3px 0 #2D3142;
+      z-index: 10;
+      transform: rotate(6deg);
+      animation: badgePulse 1.2s infinite alternate;
+    }
+
+    @keyframes badgePulse {
+      from { transform: rotate(6deg) scale(1); }
+      to { transform: rotate(8deg) scale(1.08); }
+    }
+
+    .card-dashed-frame {
+      flex: 1;
+      border: 3.5px dashed #2D3142;
+      border-radius: 18px;
+      background: #FFFFFF;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: space-between;
+      padding: 14px 14px 16px;
+      position: relative;
+      overflow: hidden;
+    }
+
+    /* 若用戶上傳自訂圖片覆蓋 */
+    .custom-card-img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      border-radius: 14px;
+    }
+
+    .reward-card-title {
+      font-size: clamp(1.6rem, 2.5vw, 2.05rem);
+      font-weight: 900;
+      color: #1E222B;
+      letter-spacing: 2px;
+      margin: 2px 0 0;
+      text-align: center;
+      line-height: 1.2;
+    }
+
+    .reward-card-illustration {
+      width: 100%;
+      flex: 1;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 4px 0;
+      max-height: 215px;
+    }
+
+    .reward-card-illustration svg {
+      width: 100%;
+      height: 100%;
+      max-height: 205px;
+    }
+
+    .reward-card-desc {
+      font-size: clamp(0.95rem, 1.35vw, 1.1rem);
+      font-weight: 700;
+      color: #1E222B;
+      line-height: 1.48;
+      text-align: left;
+      width: 100%;
+      margin: 0;
+      background: rgba(248, 250, 252, 0.7);
+      padding: 6px 8px;
+      border-radius: 10px;
+    }
+
+    /* 再抽一張提示條（超級幸運卡專屬） */
+    .bonus-draw-banner {
+      margin-top: 12px;
+      background: linear-gradient(90deg, #FF5964, #FFCA3A);
+      color: #2D3142;
+      font-weight: 900;
+      font-size: 1.1rem;
+      padding: 8px 18px;
+      border-radius: 999px;
+      border: 3px solid #2D3142;
+      box-shadow: 0 4px 0 #2D3142;
+      display: none;
+      align-items: center;
+      gap: 8px;
+      animation: bounceSlow 1.4s infinite;
+    }
+
+    .bonus-draw-banner.visible {
+      display: inline-flex;
+    }
+
+    /* 下方歷史紀錄橫條 */
+    .history-bar {
+      margin-top: 16px;
+      background: #F8FAFC;
+      border: 3px solid #2D3142;
+      border-radius: 20px;
+      padding: 10px 14px;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .history-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 0.92rem;
+      font-weight: 900;
+      color: #475569;
+    }
+
+    .history-list {
+      display: flex;
+      gap: 8px;
+      overflow-x: auto;
+      padding-bottom: 4px;
+      min-height: 36px;
+      align-items: center;
+    }
+
+    .history-list::-webkit-scrollbar {
+      height: 6px;
+    }
+
+    .history-list::-webkit-scrollbar-thumb {
+      background: #CBD5E1;
+      border-radius: 999px;
+    }
+
+    .history-chip {
+      flex-shrink: 0;
+      padding: 5px 12px;
+      border-radius: 999px;
+      font-size: 0.88rem;
+      font-weight: 900;
+      border: 2px solid #2D3142;
+      background: #FFF;
+      color: #2D3142;
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      cursor: pointer;
+      transition: transform 0.1s;
+    }
+
+    .history-chip:hover {
+      transform: scale(1.05);
+    }
+
+    .history-chip.rare {
+      background: linear-gradient(135deg, #FFF3B0, #FFD700);
+    }
+
+    .history-empty {
+      font-size: 0.9rem;
+      color: #94A3B8;
+      font-weight: 700;
+    }
+
+    /* 老師後台 / 機率設定彈窗 */
+    .modal-backdrop {
+      position: fixed;
+      inset: 0;
+      background: rgba(45, 49, 66, 0.65);
+      backdrop-filter: blur(4px);
+      display: none;
+      align-items: center;
+      justify-content: center;
+      z-index: 100;
+      padding: 16px;
+    }
+
+    .modal-backdrop.open {
+      display: flex;
+    }
+
+    .modal-box {
+      background: #FFFDF7;
+      border: 4px solid #2D3142;
+      border-radius: 28px;
+      width: 100%;
+      max-width: 820px;
+      max-height: 88vh;
+      display: flex;
+      flex-direction: column;
+      box-shadow: 0 14px 0 #2D3142;
+      overflow: hidden;
+    }
+
+    .modal-header {
+      background: #FFCA3A;
+      padding: 14px 22px;
+      border-bottom: 4px solid #2D3142;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .modal-header h2 {
+      margin: 0;
+      font-size: 1.4rem;
+      font-weight: 900;
+    }
+
+    .modal-body {
+      padding: 18px 22px;
+      overflow-y: auto;
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+    }
+
+    .prob-summary {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      background: #EFF6FF;
+      border: 2.5px solid #2D3142;
+      border-radius: 16px;
+      padding: 12px 16px;
+      font-weight: 700;
+      font-size: 0.95rem;
+    }
+
+    .prob-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.95rem;
+    }
+
+    .prob-table th, .prob-table td {
+      border: 2px solid #CBD5E1;
+      padding: 8px 10px;
+      text-align: left;
+    }
+
+    .prob-table th {
+      background: #F1F5F9;
+      font-weight: 900;
+    }
+
+    .badge-tier {
+      display: inline-block;
+      padding: 2px 8px;
+      border-radius: 999px;
+      font-size: 0.8rem;
+      font-weight: 900;
+      border: 1.5px solid #2D3142;
+    }
+
+    .tier-warm { background: #BAE6FD; }
+    .tier-normal { background: #DCFCE7; }
+    .tier-rare { background: #FDE047; }
+
+    .upload-label {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      background: #FFF;
+      border: 2px solid #2D3142;
+      border-radius: 8px;
+      padding: 4px 10px;
+      font-size: 0.82rem;
+      font-weight: 700;
+      cursor: pointer;
+    }
+
+    .upload-label:hover {
+      background: #FEF08A;
+    }
+
+    /* Confetti 彩帶畫布 */
+    #confetti-canvas {
+      position: fixed;
+      inset: 0;
+      pointer-events: none;
+      z-index: 90;
+    }
+
+    /* 響應式設計：平板或手機直向自動上下排列 */
+    @media (max-width: 900px) {
+      main {
+        flex-direction: column;
+        padding: 14px;
+      }
+      .left-panel, .right-panel {
+        flex: none;
+        width: 100%;
+      }
+      .header-spacer {
+        display: none;
+      }
+      .card-stage {
+        max-width: 280px;
+      }
+    }
+  </style>
+</head>
+<body>
+
+  <canvas id="confetti-canvas"></canvas>
+
+  <!-- 頂部標題區 -->
+  <header>
+    <div class="header-spacer"></div>
+    <div class="title-wrap">
+      <span class="star-deco">🌟</span>
+      <h1 class="title-text">好運扭蛋機</h1>
+      <span class="star-deco">🎉</span>
+    </div>
+    <div class="header-controls">
+      <button id="mute-btn" class="icon-btn" title="切換音效">🔊 音效開</button>
+      <button id="admin-btn" class="icon-btn" title="查看機率與老師設定">⚙️ 機率設定</button>
+    </div>
+  </header>
+
+  <!-- 主畫面左右分欄 -->
+  <main>
+    <!-- 左側 42%：互動扭蛋機 -->
+    <section class="left-panel">
+      <div class="machine-stage" id="machine-stage">
+        <!-- 精緻 SVG 卡通扭蛋機 -->
+        <svg id="gacha-svg" viewBox="0 0 400 500" xmlns="http://www.w3.org/2000/svg">
+          <defs>
+            <radialGradient id="glassGrad" cx="35%" cy="30%" r="70%">
+              <stop offset="0%" stop-color="#FFFFFF" stop-opacity="0.85"/>
+              <stop offset="55%" stop-color="#E0F7FA" stop-opacity="0.35"/>
+              <stop offset="100%" stop-color="#80DEEA" stop-opacity="0.55"/>
+            </radialGradient>
+            <linearGradient id="bodyRed" x1="0%" y1="0%" x2="100%" y2="0%">
+              <stop offset="0%" stop-color="#FF6B6B"/>
+              <stop offset="50%" stop-color="#FF4757"/>
+              <stop offset="100%" stop-color="#E84118"/>
+            </linearGradient>
+            <linearGradient id="yellowTrim" x1="0%" y1="0%" x2="0%" y2="100%">
+              <stop offset="0%" stop-color="#FFE66D"/>
+              <stop offset="100%" stop-color="#FFCA3A"/>
+            </linearGradient>
+            <clipPath id="domeClip">
+              <path d="M 75 235 C 55 135, 110 42, 200 42 C 290 42, 345 135, 325 235 Z"/>
+            </clipPath>
+          </defs>
+
+          <!-- 底座陰影 -->
+          <ellipse cx="200" cy="482" rx="135" ry="14" fill="rgba(45,49,66,0.18)"/>
+
+          <!-- 機器腳座 -->
+          <path d="M 92 455 L 82 478 L 135 478 L 142 455 Z" fill="#FFCA3A" stroke="#2D3142" stroke-width="5" stroke-linejoin="round"/>
+          <path d="M 308 455 L 318 478 L 265 478 L 258 455 Z" fill="#FFCA3A" stroke="#2D3142" stroke-width="5" stroke-linejoin="round"/>
+
+          <!-- 透明玻璃圓罩底色 -->
+          <path d="M 75 235 C 55 135, 110 42, 200 42 C 290 42, 345 135, 325 235 Z" fill="#FFFDF9" stroke="#2D3142" stroke-width="6"/>
+
+          <!-- 圓罩內滾動扭蛋球群組 (由 JS 動態生成並可翻滾) -->
+          <g id="dome-balls" clip-path="url(#domeClip)"></g>
+
+          <!-- 透明玻璃圓罩反光遮罩 -->
+          <path d="M 75 235 C 55 135, 110 42, 200 42 C 290 42, 345 135, 325 235 Z" fill="url(#glassGrad)" stroke="#2D3142" stroke-width="6"/>
+          <!-- 玻璃高光弧線 -->
+          <path d="M 105 155 C 102 105, 135 68, 178 60" fill="none" stroke="#FFFFFF" stroke-width="9" stroke-linecap="round" opacity="0.85"/>
+          <circle cx="98" cy="176" r="5" fill="#FFFFFF" opacity="0.85"/>
+
+          <!-- 頂部皇冠蓋子 -->
+          <path d="M 135 46 C 145 20, 255 20, 265 46 Z" fill="url(#yellowTrim)" stroke="#2D3142" stroke-width="5" stroke-linejoin="round"/>
+          <circle cx="200" cy="20" r="12" fill="#FF5964" stroke="#2D3142" stroke-width="5"/>
+
+          <!-- 中間黃色腰帶環 -->
+          <rect x="66" y="226" width="268" height="26" rx="13" fill="url(#yellowTrim)" stroke="#2D3142" stroke-width="5"/>
+
+          <!-- 紅色主機身 -->
+          <path d="M 76 252 L 324 252 L 314 456 C 313 464, 306 468, 298 468 L 102 468 C 94 468, 87 464, 86 456 Z" fill="url(#bodyRed)" stroke="#2D3142" stroke-width="6" stroke-linejoin="round"/>
+
+          <!-- 機身裝飾星星貼紙 -->
+          <polygon points="105,280 110,290 121,291 113,299 115,310 105,304 95,310 97,299 89,291 100,290" fill="#FFE66D" stroke="#2D3142" stroke-width="3"/>
+          <polygon points="295,280 300,290 311,291 303,299 305,310 295,304 285,310 287,299 279,291 290,290" fill="#4CC9F0" stroke="#2D3142" stroke-width="3"/>
+
+          <!-- 投幣孔銘牌 -->
+          <rect x="242" y="330" width="46" height="62" rx="10" fill="#FFF" stroke="#2D3142" stroke-width="4"/>
+          <rect x="261" y="342" width="8" height="24" rx="4" fill="#2D3142"/>
+          <text x="265" y="382" font-size="11" font-weight="900" text-anchor="middle" fill="#FF4757">FREE</text>
+
+          <!-- 出蛋口外框 -->
+          <rect x="102" y="395" width="115" height="62" rx="16" fill="#2D3142"/>
+          <rect x="108" y="401" width="103" height="50" rx="12" fill="#1A1D29"/>
+          <!-- 出蛋口擋板 -->
+          <path d="M 108 401 L 211 401 L 205 424 L 114 424 Z" fill="#4A5568" stroke="#2D3142" stroke-width="3"/>
+
+          <!-- 中央大轉盤把手 (可點擊旋轉) -->
+          <g id="knob-group" class="knob-group">
+            <circle cx="175" cy="332" r="46" fill="#FFFFFF" stroke="#2D3142" stroke-width="5"/>
+            <circle cx="175" cy="332" r="36" fill="#FFE66D" stroke="#2D3142" stroke-width="4"/>
+            <!-- 旋轉握把橫槓 -->
+            <rect x="131" y="321" width="88" height="22" rx="11" fill="#FF5964" stroke="#2D3142" stroke-width="5"/>
+            <circle cx="175" cy="332" r="9" fill="#FFF" stroke="#2D3142" stroke-width="3"/>
+          </g>
+        </svg>
+
+        <!-- 掉出的彩色扭蛋彈出層 -->
+        <div id="dropped-overlay" class="dropped-capsule-overlay">
+          <svg id="big-capsule-svg" class="big-capsule" viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg">
+            <defs>
+              <clipPath id="capClip">
+                <circle cx="100" cy="100" r="84"/>
+              </clipPath>
+            </defs>
+            <g clip-path="url(#capClip)">
+              <!-- 下半透明殼 -->
+              <rect x="0" y="95" width="200" height="105" fill="#FFFFFF"/>
+              <!-- 內部神祕發光卷軸 -->
+              <rect x="62" y="75" width="76" height="52" rx="12" fill="#FFE66D" stroke="#2D3142" stroke-width="4" transform="rotate(-12 100 100)"/>
+              <text x="100" y="108" font-size="26" font-weight="900" text-anchor="middle" fill="#FF5964">★</text>
+              <!-- 上半彩色殼 -->
+              <rect id="capsule-top-color" x="0" y="0" width="200" height="102" fill="#FF5964"/>
+              <!-- 中間接縫 -->
+              <rect x="0" y="96" width="200" height="10" fill="#2D3142"/>
+            </g>
+            <circle cx="100" cy="100" r="84" fill="none" stroke="#2D3142" stroke-width="8"/>
+            <!-- 扭蛋高光 -->
+            <path d="M 48 62 C 56 42, 76 32, 96 32" fill="none" stroke="#FFFFFF" stroke-width="10" stroke-linecap="round" opacity="0.8"/>
+          </svg>
+          <div class="capsule-hint">✨ 點擊扭蛋打開驚喜！ ✨</div>
+        </div>
+      </div>
+
+      <button id="spin-btn" class="spin-btn">
+        <span>🎲</span>
+        <span>轉動扭蛋！</span>
+      </button>
+    </section>
+
+    <!-- 右側 58%：卡片展示與歷史紀錄 -->
+    <section class="right-panel">
+      <div class="card-display-area">
+        <div class="card-stage">
+          <div id="card-inner" class="card-inner">
+            <!-- 卡背（等待抽獎） -->
+            <div class="card-face card-back">
+              <div class="card-back-dashed">
+                <div class="card-back-icon">🎁</div>
+                <div class="card-back-title">神秘獎勵卡</div>
+                <div class="card-back-sub">快轉動左邊的扭蛋機吧！</div>
+              </div>
+            </div>
+
+            <!-- 卡面（抽中呈現） -->
+            <div id="card-front" class="card-face card-front">
+              <div id="rare-badge" class="rare-badge" style="display: none;">★ 稀有卡 ★</div>
+              <div id="card-dashed-frame" class="card-dashed-frame">
+                <h2 id="reward-title" class="reward-card-title">全班讚賞卡</h2>
+                <div id="reward-illustration" class="reward-card-illustration"></div>
+                <p id="reward-desc" class="reward-card-desc">全班讚賞卡：全班給你10秒鐘的熱烈掌聲鼓勵。</p>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 超級幸運卡專屬提示 -->
+        <div id="bonus-banner" class="bonus-draw-banner">
+          <span>🍀 抽中超級幸運卡！可以再轉 2 次扭蛋喔！</span>
+        </div>
+      </div>
+
+      <!-- 下方抽卡歷史紀錄橫條 -->
+      <div class="history-bar">
+        <div class="history-header">
+          <span>📜 本節課抽卡紀錄（點擊可重新檢視）</span>
+          <span id="draw-count-text">已抽出：0 張</span>
+        </div>
+        <div id="history-list" class="history-list">
+          <span class="history-empty">尚未抽出卡片，快請第一位小幫手來轉扭蛋吧！</span>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <!-- 機率設定與老師後台彈窗 -->
+  <div id="admin-modal" class="modal-backdrop">
+    <div class="modal-box">
+      <div class="modal-header">
+        <h2>⚙️ 老師後台：卡片機率權重與圖卡管理</h2>
+        <button id="close-modal-btn" class="icon-btn">✖ 關閉</button>
+      </div>
+      <div class="modal-body">
+        <div class="prob-summary">
+          <span>🎯 總機率：<strong>100%</strong></span>
+          <span>｜</span>
+          <span>💙 高頻溫暖卡 (1張)：<strong>8%</strong></span>
+          <span>｜</span>
+          <span>💚 一般卡 (12張)：每張 <strong>7%</strong> (共 84%)</span>
+          <span>｜</span>
+          <span>⭐ 稀有卡 (4張)：每張 <strong>2%</strong> (共 8%)</span>
+        </div>
+
+        <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px;">
+          <span style="font-size: 0.9rem; color: #475569; font-weight: 700;">💡 預設已內建完整 17 張手繪風 SVG 卡片，老師也可自行上傳圖片覆蓋單張卡片。</span>
+          <button id="reset-history-btn" class="icon-btn" style="background: #FEE2E2;">🗑️ 清空抽卡紀錄</button>
+        </div>
+
+        <table class="prob-table">
+          <thead>
+            <tr>
+              <th>分級</th>
+              <th>卡片名稱</th>
+              <th>機率</th>
+              <th>獎勵內容說明</th>
+              <th>自訂圖檔</th>
+            </tr>
+          </thead>
+          <tbody id="prob-tbody"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    /**
+     * 1. 內建 17 張獎勵卡資料與精準權重 (總和 = 100)
+     * 還原用戶設計的邊框配色與可愛手繪插畫
+     */
+    let CARDS_DATA = [
+      {
+        id: 'class_applause',
+        name: '全班讚賞卡',
+        weight: 8,
+        tier: 'warm',
+        tierLabel: '高頻溫暖',
+        borderColor: '#BCE0E6',
+        desc: '全班讚賞卡：全班給你10秒鐘的熱烈掌聲鼓勵。',
+        svg: `
+          <svg viewBox="0 0 260 200" xmlns="http://www.w3.org/2000/svg">
+            <!-- 星星與讚標語 -->
+            <text x="130" y="36" font-size="26" font-weight="900" text-anchor="middle" fill="#1E222B">讚！</text>
+            <polygon points="58,22 62,30 71,31 64,37 66,46 58,41 50,46 52,37 45,31 54,30" fill="#FFE66D" stroke="#1E222B" stroke-width="2.5"/>
+            <polygon points="202,24 206,32 215,33 208,39 210,48 202,43 194,48 196,39 189,33 198,32" fill="#FFE66D" stroke="#1E222B" stroke-width="2.5"/>
+            <!-- 後排同學鼓掌 -->
+            <g stroke="#1E222B" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
+              <circle cx="80" cy="88" r="16" fill="#FAD2C3"/>
+              <path d="M 65 82 Q 80 68 95 82" fill="#5C4033"/>
+              <circle cx="182" cy="88" r="16" fill="#FAD2C3"/>
+              <path d="M 167 82 Q 182 68 197 82" fill="#5C4033"/>
+              <!-- 主角開心害羞站中間 -->
+              <circle cx="130" cy="94" r="22" fill="#FAD2C3"/>
+              <path d="M 108 88 Q 130 66 152 88 L 148 78 Q 130 68 112 78 Z" fill="#4A3525"/>
+              <path d="M 120 92 Q 124 88 128 92" fill="none"/>
+              <path d="M 134 92 Q 138 88 142 92" fill="none"/>
+              <path d="M 124 102 Q 130 110 136 102 Z" fill="#FF6B6B"/>
+              <ellipse cx="116" cy="99" rx="4" ry="2.5" fill="#FF9AA2" stroke="none"/>
+              <ellipse cx="144" cy="99" rx="4" ry="2.5" fill="#FF9AA2" stroke="none"/>
+              <rect x="112" y="116" width="36" height="36" rx="10" fill="#FFFFFF"/>
+              <rect x="114" y="150" width="32" height="18" fill="#4CC9F0"/>
+              <!-- 鼓掌大手 -->
+              <path d="M 32 135 Q 48 112 62 128 Q 52 146 35 148 Z" fill="#FAD2C3"/>
+              <path d="M 42 162 Q 62 142 74 158 Q 62 174 44 174 Z" fill="#FAD2C3"/>
+              <path d="M 225 145 Q 205 125 194 142 Q 204 158 220 160 Z" fill="#FAD2C3"/>
+            </g>
+            <text x="48" y="88" font-size="16" font-weight="900" fill="#1E222B" transform="rotate(-10 48 88)">啪啪啪!</text>
+            <!-- 10秒計時器 -->
+            <circle cx="88" cy="168" r="14" fill="#FFF" stroke="#1E222B" stroke-width="3"/>
+            <path d="M 88 168 L 88 157 A 11 11 0 0 1 95 160 Z" fill="#FF5964"/>
+            <text x="172" y="176" font-size="17" font-weight="900" fill="#1E222B">10秒</text>
+          </svg>
+        `
+      },
+      {
+        id: 'dj_song',
+        name: '點歌 DJ 卡',
+        weight: 7,
+        tier: 'normal',
+        tierLabel: '一般卡',
+        borderColor: '#FFE58F',
+        desc: '點歌 DJ 卡：一節下課時間或潔牙後，由你挑選2首正向歌曲播放給全班聽。',
+        svg: `
+          <svg viewBox="0 0 260 200" xmlns="http://www.w3.org/2000/svg">
+            <text x="130" y="32" font-size="18" font-weight="900" text-anchor="middle" fill="#FF5964">♪ 快樂點歌時間 ♫</text>
+            <!-- 音符裝飾 -->
+            <text x="44" y="68" font-size="26" font-weight="900" fill="#38B6FF">♪</text>
+            <text x="200" y="64" font-size="28" font-weight="900" fill="#FF5964">♫</text>
+            <text x="210" y="135" font-size="22" font-weight="900" fill="#52D196">♩</text>
+            <!-- 戴耳機的小DJ -->
+            <g stroke="#1E222B" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round">
+              <!-- 耳機頭帶 -->
+              <path d="M 92 104 C 92 60, 168 60, 168 104" fill="none" stroke="#FF5964" stroke-width="8"/>
+              <path d="M 92 104 C 92 60, 168 60, 168 104" fill="none" stroke="#1E222B" stroke-width="3"/>
+              <!-- 臉 -->
+              <circle cx="130" cy="108" r="28" fill="#FAD2C3"/>
+              <path d="M 103 98 Q 130 76 157 98" fill="#4A3525"/>
+              <path d="M 117 106 Q 122 101 127 106" fill="none"/>
+              <path d="M 134 106 Q 139 101 144 106" fill="none"/>
+              <path d="M 122 118 Q 130 128 138 118 Z" fill="#FF6B6B"/>
+              <!-- 耳罩 -->
+              <rect x="86" y="96" width="14" height="28" rx="7" fill="#38B6FF"/>
+              <rect x="160" y="96" width="14" height="28" rx="7" fill="#38B6FF"/>
+              <!-- DJ 混音台 -->
+              <rect x="75" y="142" width="110" height="36" rx="10" fill="#4CC9F0"/>
+              <circle cx="105" cy="160" r="11" fill="#FFF"/>
+              <circle cx="155" cy="160" r="11" fill="#FFF"/>
+              <rect x="124" y="152" width="12" height="16" rx="3" fill="#FFE66D"/>
+            </g>
+          </svg>
+        `
+      },
+      {
+        id: 'class_bonus',
+        name: '全班加分卡',
+        weight: 7,
+        tier: 'normal',
+        tierLabel: '一般卡',
+        borderColor: '#BCE2CE',
+        desc: '全班加分卡：老師幫全班加上 5個榮譽點數。',
+        svg: `
+          <svg viewBox="0 0 260 200" xmlns="http://www.w3.org/2000/svg">
+            <!-- 大大的 +5! -->
+            <text x="122" y="58" font-size="44" font-weight="900" text-anchor="middle" fill="#FFCA3A" stroke="#1E222B" stroke-width="3">+5!</text>
+            <polygon points="56,34 60,42 69,43 62,49 64,58 56,53 48,58 50,49 43,43 52,42" fill="#FFE66D" stroke="#1E222B" stroke-width="2.5"/>
+            <polygon points="186,28 190,36 199,37 192,43 194,52 186,47 178,52 180,43 173,37 182,36" fill="#FFE66D" stroke="#1E222B" stroke-width="2.5"/>
+            <!-- 比讚手勢 -->
+            <g stroke="#1E222B" stroke-width="3" stroke-linejoin="round">
+              <path d="M 192 88 L 192 72 Q 198 66 202 74 L 202 86 L 216 86 Q 222 92 216 98 L 214 108 L 192 108 Z" fill="#FAD2C3"/>
+            </g>
+            <!-- 一群開心小朋友頭像 -->
+            <g stroke="#1E222B" stroke-width="3">
+              <circle cx="88" cy="102" r="22" fill="#FAD2C3"/>
+              <path d="M 66 98 Q 88 76 110 98" fill="#5C4033"/>
+              <circle cx="132" cy="104" r="22" fill="#FAD2C3"/>
+              <path d="M 110 98 Q 132 76 154 98" fill="#4A3525"/>
+              <circle cx="172" cy="104" r="20" fill="#FAD2C3"/>
+              <circle cx="80" cy="144" r="22" fill="#FAD2C3"/>
+              <circle cx="128" cy="148" r="22" fill="#FAD2C3"/>
+              <circle cx="176" cy="144" r="22" fill="#FAD2C3"/>
+              <!-- 笑臉五官 -->
+              <path d="M 122 148 Q 128 156 134 148 Z" fill="#FF6B6B"/>
+              <path d="M 74 144 Q 80 152 86 144 Z" fill="#FF6B6B"/>
+              <path d="M 170 144 Q 176 152 182 144 Z" fill="#FF6B6B"/>
+            </g>
+          </svg>
+        `
+      },
+      {
+        id: 'self_bonus',
+        name: '自己加分卡',
+        weight: 7,
+        tier: 'normal',
+        tierLabel: '一般卡',
+        borderColor: '#F7C699',
+        desc: '自己加分卡：老師幫你加上10 個榮譽點數。',
+        svg: `
+          <svg viewBox="0 0 260 200" xmlns="http://www.w3.org/2000/svg">
+            <text x="115" y="55" font-size="40" font-weight="900" text-anchor="middle" fill="#FFA94D" stroke="#1E222B" stroke-width="3" transform="rotate(-8 115 55)">+10!</text>
+            <polygon points="55,34 59,42 68,43 61,49 63,58 55,53 47,58 49,49 42,43 51,42" fill="#FFE66D" stroke="#1E222B" stroke-width="2.5"/>
+            <polygon points="184,36 188,44 197,45 190,51 192,60 184,55 176,60 178,51 171,45 180,44" fill="#FFE66D" stroke="#1E222B" stroke-width="2.5"/>
+            <!-- 戴皇冠比YA的小朋友 -->
+            <g stroke="#1E222B" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round">
+              <!-- 小皇冠 -->
+              <polygon points="136,76 142,58 152,68 162,56 168,78" fill="#FFD700"/>
+              <!-- 頭與頭髮 -->
+              <circle cx="132" cy="112" r="26" fill="#FAD2C3"/>
+              <path d="M 106 105 Q 132 80 158 105" fill="#5C4033"/>
+              <path d="M 120 110 Q 124 105 128 110" fill="none"/>
+              <path d="M 136 110 Q 140 105 144 110" fill="none"/>
+              <path d="M 124 120 Q 132 130 140 120 Z" fill="#FF6B6B"/>
+              <!-- 身體與舉雙手比YA -->
+              <path d="M 105 176 L 110 138 L 154 138 L 159 176 Z" fill="#FFFFFF"/>
+              <path d="M 108 148 L 84 126" fill="none" stroke-width="10" stroke="#FFFFFF"/>
+              <path d="M 108 148 L 84 126" fill="none"/>
+              <path d="M 156 148 L 180 126" fill="none" stroke-width="10" stroke="#FFFFFF"/>
+              <path d="M 156 148 L 180 126" fill="none"/>
+              <!-- 雙手比YA -->
+              <circle cx="82" cy="122" r="8" fill="#FAD2C3"/>
+              <line x1="79" y1="115" x2="75" y2="103"/>
+              <line x1="85" y1="115" x2="89" y2="103"/>
+              <circle cx="182" cy="122" r="8" fill="#FAD2C3"/>
+              <line x1="179" y1="115" x2="175" y2="103"/>
+              <line x1="185" y1="115" x2="189" y2="103"/>
+            </g>
+          </svg>
+        `
+      },
+      {
+        id: 'snack_1',
+        name: '活力補給卡',
+        weight: 7,
+        tier: 'normal',
+        tierLabel: '一般卡',
+        borderColor: '#FAD199',
+        desc: '活力補給卡：可以兌換1包餅乾，在老師的課堂上可以吃。但不影響學習。',
+        svg: `
+          <svg viewBox="0 0 260 200" xmlns="http://www.w3.org/2000/svg">
+            <text x="176" y="42" font-size="22" font-weight="900" text-anchor="middle" fill="#1E222B">美味！</text>
+            <polygon points="56,36 60,44 69,45 62,51 64,60 56,55 48,60 50,51 43,45 52,44" fill="#FFE66D" stroke="#1E222B" stroke-width="2.5"/>
+            <!-- 餅乾包裝袋 -->
+            <g stroke="#1E222B" stroke-width="3.2" stroke-linejoin="round" transform="rotate(-24 105 110)">
+              <rect x="65" y="55" width="76" height="106" rx="6" fill="#FFB36B"/>
+              <rect x="65" y="75" width="76" height="66" fill="#FFFDF7"/>
+              <circle cx="96" cy="105" r="14" fill="#D49A6A"/>
+              <circle cx="114" cy="116" r="12" fill="#D49A6A"/>
+            </g>
+            <!-- 跳出來的巧克力豆餅乾 -->
+            <g stroke="#1E222B" stroke-width="3">
+              <circle cx="154" cy="74" r="18" fill="#D49A6A"/>
+              <circle cx="150" cy="70" r="2.2" fill="#3E2723"/>
+              <circle cx="160" cy="76" r="2.2" fill="#3E2723"/>
+              <circle cx="182" cy="118" r="20" fill="#D49A6A"/>
+              <circle cx="177" cy="112" r="2.5" fill="#3E2723"/>
+              <circle cx="188" cy="122" r="2.5" fill="#3E2723"/>
+              <circle cx="158" cy="154" r="20" fill="#D49A6A"/>
+              <circle cx="153" cy="150" r="2.5" fill="#3E2723"/>
+              <circle cx="164" cy="158" r="2.5" fill="#3E2723"/>
+            </g>
+          </svg>
+        `
+      },
+      {
+        id: 'snack_2',
+        name: '活力加倍卡',
+        weight: 7,
+        tier: 'normal',
+        tierLabel: '一般卡',
+        borderColor: '#FAD199',
+        desc: '活力加倍卡：可以兌換2包餅乾，在老師的課堂上可以吃。但不影響學習。',
+        svg: `
+          <svg viewBox="0 0 260 200" xmlns="http://www.w3.org/2000/svg">
+            <text x="64" y="62" font-size="18" font-weight="900" fill="#1E222B">雙倍</text>
+            <text x="196" y="54" font-size="20" font-weight="900" fill="#1E222B">美味！</text>
+            <!-- 兩包餅乾 -->
+            <g stroke="#1E222B" stroke-width="3" stroke-linejoin="round" transform="rotate(-10 92 122)">
+              <rect x="60" y="76" width="66" height="92" rx="6" fill="#FFB36B"/>
+              <rect x="60" y="92" width="66" height="60" fill="#FFFDF7"/>
+              <circle cx="93" cy="108" r="11" fill="#FFE66D"/>
+              <circle cx="85" cy="134" r="10" fill="#D49A6A"/>
+              <circle cx="104" cy="134" r="10" fill="#D49A6A"/>
+            </g>
+            <g stroke="#1E222B" stroke-width="3" stroke-linejoin="round" transform="rotate(10 164 125)">
+              <rect x="132" y="80" width="66" height="92" rx="6" fill="#FFB36B"/>
+              <rect x="132" y="96" width="66" height="60" fill="#FFFDF7"/>
+              <circle cx="156" cy="136" r="10" fill="#D49A6A"/>
+              <circle cx="175" cy="136" r="10" fill="#D49A6A"/>
+            </g>
+            <!-- 開心餅乾人 -->
+            <g stroke="#1E222B" stroke-width="3">
+              <circle cx="122" cy="44" r="19" fill="#D49A6A"/>
+              <path d="M 115 46 Q 122 53 129 46" fill="none"/>
+              <circle cx="52" cy="148" r="14" fill="#D49A6A"/>
+              <circle cx="208" cy="152" r="14" fill="#D49A6A"/>
+            </g>
+          </svg>
+        `
+      },
+      {
+        id: 'drink_1',
+        name: '精力補給卡',
+        weight: 7,
+        tier: 'normal',
+        tierLabel: '一般卡',
+        borderColor: '#BCE2F7',
+        desc: '精力補給卡：可以兌換一瓶飲料，在老師的課堂上可以喝。但不影響學習。',
+        svg: `
+          <svg viewBox="0 0 260 200" xmlns="http://www.w3.org/2000/svg">
+            <text x="64" y="64" font-size="21" font-weight="900" fill="#1E222B" transform="rotate(-14 64 64)">好喝！</text>
+            <!-- 閃電與水花 -->
+            <polygon points="196,42 184,64 195,64 188,82 208,58 196,58" fill="#FFE66D" stroke="#1E222B" stroke-width="2.5"/>
+            <ellipse cx="64" cy="112" rx="9" ry="5" fill="#80DEEA" stroke="#1E222B" stroke-width="2.5"/>
+            <ellipse cx="195" cy="124" rx="9" ry="5" fill="#80DEEA" stroke="#1E222B" stroke-width="2.5"/>
+            <!-- 玻璃能量飲料瓶與吸管 -->
+            <g stroke="#1E222B" stroke-width="3.5" stroke-linejoin="round" transform="rotate(14 130 112)">
+              <!-- 吸管 -->
+              <path d="M 130 148 L 130 24 L 154 16" fill="none" stroke="#FF9AA2" stroke-width="9"/>
+              <path d="M 130 148 L 130 24 L 154 16" fill="none" stroke="#1E222B" stroke-width="3"/>
+              <!-- 瓶身 -->
+              <path d="M 116 52 L 144 52 L 144 68 L 160 86 L 160 164 Q 160 176 146 176 L 114 176 Q 100 176 100 164 L 100 86 L 116 68 Z" fill="#E0F7FA"/>
+              <!-- 標籤 -->
+              <rect x="100" y="106" width="60" height="34" fill="#FFB36B"/>
+              <text x="130" y="129" font-size="16" font-weight="900" text-anchor="middle" fill="#1E222B" stroke="none">能量♥</text>
+            </g>
+          </svg>
+        `
+      },
+      {
+        id: 'less_homework',
+        name: '作業少寫卡',
+        weight: 7,
+        tier: 'normal',
+        tierLabel: '一般卡',
+        borderColor: '#BCE2F7',
+        desc: '作業少寫卡：課文寫前面一半，另一半用唸的；圈詞寫1次；成語句子寫1次。',
+        svg: `
+          <svg viewBox="0 0 260 200" xmlns="http://www.w3.org/2000/svg">
+            <!-- 攤開的國語作業本 -->
+            <g stroke="#1E222B" stroke-width="3" stroke-linejoin="round" transform="rotate(-10 95 105)">
+              <rect x="34" y="54" width="64" height="96" rx="4" fill="#FFF"/>
+              <rect x="98" y="54" width="64" height="96" rx="4" fill="#FFF"/>
+              <text x="66" y="76" font-size="11" font-weight="900" text-anchor="middle" fill="#1E222B" stroke="none">國語作業本</text>
+              <line x1="44" y1="90" x2="88" y2="90"/>
+              <line x1="44" y1="104" x2="88" y2="104"/>
+              <line x1="44" y1="118" x2="88" y2="118"/>
+            </g>
+            <!-- 開心大聲唸的小朋友 -->
+            <g stroke="#1E222B" stroke-width="3">
+              <circle cx="176" cy="76" r="20" fill="#FAD2C3"/>
+              <path d="M 168 82 Q 176 92 184 82 Z" fill="#FF6B6B"/>
+              <ellipse cx="218" cy="44" rx="22" ry="15" fill="#FFF"/>
+              <text x="218" y="49" font-size="14" font-weight="900" text-anchor="middle" fill="#1E222B" stroke="none">唸！</text>
+            </g>
+            <!-- 便條紙與鉛筆 -->
+            <g stroke="#1E222B" stroke-width="2.8" transform="rotate(6 184 144)">
+              <rect x="148" y="112" width="76" height="58" fill="#FFFDF7"/>
+              <text x="186" y="133" font-size="11" font-weight="900" text-anchor="middle" fill="#1E222B" stroke="none">圈詞1次 ✓</text>
+              <text x="186" y="153" font-size="11" font-weight="900" text-anchor="middle" fill="#1E222B" stroke="none">成語句子1次</text>
+            </g>
+            <!-- 黃色鉛筆 -->
+            <polygon points="122,168 134,132 142,135 130,171" fill="#FFCA3A" stroke="#1E222B" stroke-width="2.5"/>
+          </svg>
+        `
+      },
+      {
+        id: 'exam_hint',
+        name: '考試有神卡',
+        weight: 7,
+        tier: 'normal',
+        tierLabel: '一般卡',
+        borderColor: '#BCE2CE',
+        desc: '考試有神卡：小考時，老師可以提示你一題不會的題目。',
+        svg: `
+          <svg viewBox="0 0 260 200" xmlns="http://www.w3.org/2000/svg">
+            <text x="108" y="42" font-size="16" font-weight="900" fill="#1E222B">小考</text>
+            <text x="48" y="92" font-size="24" font-weight="900" fill="#1E222B">?</text>
+            <!-- 發光靈感燈泡 -->
+            <g stroke="#1E222B" stroke-width="2.8">
+              <circle cx="206" cy="46" r="13" fill="#FFE66D"/>
+              <rect x="201" y="58" width="10" height="7" fill="#CBD5E1"/>
+            </g>
+            <!-- 煩惱學生與親切老師 -->
+            <g stroke="#1E222B" stroke-width="3" stroke-linejoin="round">
+              <!-- 學生 -->
+              <circle cx="88" cy="96" r="20" fill="#FAD2C3"/>
+              <path d="M 68 92 Q 88 72 108 92" fill="#4A3525"/>
+              <rect x="68" y="116" width="40" height="26" rx="8" fill="#80DEEA"/>
+              <!-- 老師 -->
+              <circle cx="170" cy="84" r="22" fill="#FAD2C3"/>
+              <path d="M 148 80 Q 170 56 192 80" fill="#4A3525"/>
+              <circle cx="162" cy="84" r="6" fill="none"/>
+              <circle cx="176" cy="84" r="6" fill="none"/>
+              <path d="M 144 142 L 154 106 L 194 106 L 204 142 Z" fill="#F4A261"/>
+              <!-- 桌面與小考卷 -->
+              <line x1="40" y1="142" x2="220" y2="142"/>
+              <polygon points="90,146 154,138 172,172 108,180" fill="#FFFFFF"/>
+              <line x1="108" y1="154" x2="144" y2="150"/>
+              <line x1="114" y1="164" x2="150" y2="160"/>
+              <!-- 老師手指提示 -->
+              <path d="M 162 118 L 136 156" fill="none" stroke-width="7" stroke="#FAD2C3"/>
+              <path d="M 162 118 L 136 156" fill="none"/>
+            </g>
+          </svg>
+        `
+      },
+      {
+        id: 'stationery',
+        name: '文具兌換卡',
+        weight: 7,
+        tier: 'normal',
+        tierLabel: '一般卡',
+        borderColor: '#F7C6CC',
+        desc: '文具兌換卡：可以兌換一枝紅筆或一隻藍筆或一個橡皮擦。',
+        svg: `
+          <svg viewBox="0 0 260 200" xmlns="http://www.w3.org/2000/svg">
+            <text x="192" y="48" font-size="18" font-weight="900" text-anchor="middle" fill="#1E222B">選一個！</text>
+            <polygon points="154,28 158,36 167,37 160,43 162,52 154,47 146,52 148,43 141,37 150,36" fill="#FFE66D" stroke="#1E222B" stroke-width="2.5"/>
+            <!-- 紅筆 -->
+            <g stroke="#1E222B" stroke-width="3.2" stroke-linejoin="round" transform="rotate(24 94 104)">
+              <rect x="85" y="40" width="18" height="106" rx="6" fill="#FF5964"/>
+              <polygon points="85,146 103,146 94,166" fill="#FF5964"/>
+            </g>
+            <!-- 藍筆 -->
+            <g stroke="#1E222B" stroke-width="3.2" stroke-linejoin="round" transform="rotate(24 128 114)">
+              <rect x="119" y="50" width="18" height="106" rx="6" fill="#38B6FF"/>
+              <polygon points="119,156 137,156 128,176" fill="#38B6FF"/>
+            </g>
+            <!-- 橡皮擦 -->
+            <g stroke="#1E222B" stroke-width="3.2" stroke-linejoin="round" transform="rotate(-18 178 142)">
+              <rect x="148" y="126" width="60" height="32" rx="6" fill="#FFFFFF"/>
+              <rect x="166" y="126" width="26" height="32" fill="#4CC9F0"/>
+            </g>
+          </svg>
+        `
+      },
+      {
+        id: 'nap_free',
+        name: '午休自由卡',
+        weight: 7,
+        tier: 'normal',
+        tierLabel: '一般卡',
+        borderColor: '#BCE2E6',
+        desc: '午休自由卡：午休時間可以不用睡覺，可安靜做自己的事或寫功課。',
+        svg: `
+          <svg viewBox="0 0 260 200" xmlns="http://www.w3.org/2000/svg">
+            <!-- 12:00 電子鐘 -->
+            <rect x="94" y="24" width="62" height="28" rx="6" fill="#BCE2F7" stroke="#1E222B" stroke-width="3"/>
+            <text x="125" y="44" font-size="14" font-weight="900" text-anchor="middle" fill="#1E222B">12:00</text>
+            <text x="194" y="46" font-size="18" font-weight="900" text-anchor="middle" fill="#1E222B">☆自由☆</text>
+            <!-- 左邊趴睡同學 -->
+            <g stroke="#1E222B" stroke-width="2.8" stroke-linejoin="round">
+              <circle cx="72" cy="108" r="16" fill="#FAD2C3"/>
+              <path d="M 56 104 Q 72 88 88 104" fill="#5C4033"/>
+              <polygon points="44,122 104,122 98,136 38,136" fill="#D4A373"/>
+              <line x1="46" y1="136" x2="46" y2="162"/>
+              <line x1="94" y1="136" x2="94" y2="162"/>
+              <text x="94" y="86" font-size="13" font-weight="900" fill="#1E222B" stroke="none">z Z z</text>
+            </g>
+            <!-- 右邊開心看書同學 -->
+            <g stroke="#1E222B" stroke-width="3" stroke-linejoin="round">
+              <circle cx="174" cy="96" r="20" fill="#FAD2C3"/>
+              <path d="M 154 92 Q 174 70 194 92" fill="#4A3525"/>
+              <path d="M 166 100 Q 174 108 182 100 Z" fill="#FF6B6B"/>
+              <!-- 綠皮書本 -->
+              <polygon points="146,122 174,128 174,158 146,152" fill="#80ED99"/>
+              <polygon points="202,122 174,128 174,158 202,152" fill="#80ED99"/>
+              <rect x="122" y="158" width="102" height="16" rx="4" fill="#D4A373"/>
+            </g>
+          </svg>
+        `
+      },
+      {
+        id: 'show_toy',
+        name: '今日炫寶卡',
+        weight: 7,
+        tier: 'normal',
+        tierLabel: '一般卡',
+        borderColor: '#D6C4E8',
+        desc: '今日炫寶卡：今天可以帶一個玩具到校，下課可以玩，但不影響上課秩序。',
+        svg: `
+          <svg viewBox="0 0 260 200" xmlns="http://www.w3.org/2000/svg">
+            <text x="72" y="44" font-size="16" font-weight="900" fill="#1E222B" transform="rotate(-14 72 44)">\下課嘍!/</text>
+            <text x="182" y="42" font-size="16" font-weight="900" fill="#1E222B" transform="rotate(14 182 42)">\炫寶時間!/</text>
+            <!-- 圍觀與展示玩具的小朋友 -->
+            <g stroke="#1E222B" stroke-width="2.8" stroke-linejoin="round">
+              <circle cx="72" cy="92" r="16" fill="#FAD2C3"/>
+              <circle cx="48" cy="118" r="16" fill="#FAD2C3"/>
+              <circle cx="164" cy="84" r="18" fill="#FAD2C3"/>
+              <circle cx="212" cy="116" r="16" fill="#FAD2C3"/>
+              <!-- 桌子 -->
+              <polygon points="86,126 196,126 184,146 74,146" fill="#D4A373"/>
+              <line x1="82" y1="146" x2="82" y2="174"/>
+              <line x1="184" y1="146" x2="184" y2="174"/>
+              <!-- 機器人玩具 -->
+              <rect x="116" y="78" width="22" height="18" rx="4" fill="#4CC9F0"/>
+              <rect x="113" y="98" width="28" height="24" rx="4" fill="#FFCA3A"/>
+              <line x1="127" y1="78" x2="127" y2="68"/>
+              <circle cx="127" cy="66" r="3" fill="#FF5964"/>
+              <!-- 小火車玩具 -->
+              <rect x="150" y="114" width="26" height="14" rx="3" fill="#FF5964"/>
+              <circle cx="156" cy="130" r="4" fill="#2D3142"/>
+              <circle cx="170" cy="130" r="4" fill="#2D3142"/>
+            </g>
+          </svg>
+        `
+      },
+      {
+        id: 'recess_free',
+        name: '下課自由卡',
+        weight: 7,
+        tier: 'normal',
+        tierLabel: '一般卡',
+        borderColor: '#FAD199',
+        desc: '下課自由卡：原本一節大下課不能下課，但可以自由下課。',
+        svg: `
+          <svg viewBox="0 0 260 200" xmlns="http://www.w3.org/2000/svg">
+            <text x="164" y="38" font-size="18" font-weight="900" fill="#1E222B" transform="rotate(-8 164 38)">下課嘍！</text>
+            <!-- 鬧鐘 -->
+            <circle cx="62" cy="48" r="16" fill="#FFE66D" stroke="#1E222B" stroke-width="2.8"/>
+            <line x1="62" y1="48" x2="62" y2="38" stroke="#1E222B" stroke-width="2.5"/>
+            <line x1="62" y1="48" x2="70" y2="48" stroke="#1E222B" stroke-width="2.5"/>
+            <!-- 打開的門與戶外溜滑梯 -->
+            <g stroke="#1E222B" stroke-width="3" stroke-linejoin="round">
+              <rect x="132" y="48" width="96" height="114" fill="#E8F5E9"/>
+              <polygon points="132,48 156,56 156,168 132,162" fill="#D4A373"/>
+              <!-- 戶外溜滑梯 -->
+              <path d="M 192 120 L 214 148 L 222 148" fill="none" stroke="#FF9F1C" stroke-width="5"/>
+              <!-- 禁令牌子打大叉叉 -->
+              <rect x="34" y="76" width="68" height="40" rx="4" fill="#FFFFFF"/>
+              <text x="68" y="93" font-size="10" font-weight="900" text-anchor="middle" fill="#1E222B" stroke="none">大下課罰站</text>
+              <text x="68" y="108" font-size="10" font-weight="900" text-anchor="middle" fill="#1E222B" stroke="none">不准下課</text>
+              <line x1="38" y1="78" x2="98" y2="114" stroke="#FF5964" stroke-width="5"/>
+              <line x1="98" y1="78" x2="38" y2="114" stroke="#FF5964" stroke-width="5"/>
+              <!-- 魔法棒施法啵！ -->
+              <line x1="56" y1="168" x2="96" y2="128" stroke="#5C4033" stroke-width="6"/>
+              <text x="114" y="88" font-size="14" font-weight="900" fill="#1E222B" stroke="none">啵！</text>
+              <!-- 開心衝出教室的小朋友 -->
+              <circle cx="164" cy="112" r="15" fill="#FAD2C3"/>
+              <rect x="154" y="127" width="20" height="22" rx="5" fill="#FFFFFF"/>
+              <rect x="154" y="147" width="20" height="12" fill="#38B6FF"/>
+            </g>
+          </svg>
+        `
+      },
+      {
+        id: 'super_lucky',
+        name: '超級幸運卡',
+        weight: 2,
+        tier: 'rare',
+        tierLabel: '稀有卡 2%',
+        borderColor: '#FFE066',
+        desc: '超級幸運卡：可以再抽兩張卡片！好運連連大爆發！',
+        svg: `
+          <svg viewBox="0 0 260 200" xmlns="http://www.w3.org/2000/svg">
+            <text x="130" y="36" font-size="22" font-weight="900" text-anchor="middle" fill="#FF5964">★ LUCKY ×2 ★</text>
+            <!-- 金色光芒四射 -->
+            <g stroke="#FFCA3A" stroke-width="4" stroke-linecap="round">
+              <line x1="130" y1="50" x2="130" y2="64"/>
+              <line x1="65" y1="75" x2="78" y2="85"/>
+              <line x1="195" y1="75" x2="182" y2="85"/>
+              <line x1="55" y1="130" x2="72" y2="126"/>
+              <line x1="205" y1="130" x2="188" y2="126"/>
+            </g>
+            <!-- 四葉幸運草 -->
+            <g stroke="#1E222B" stroke-width="3.5" stroke-linejoin="round" transform="translate(130,115)">
+              <path d="M 0 0 C -18 -36, -52 -12, -16 8 C -52 28, -18 52, 0 16 C 18 52, 52 28, 16 8 C 52 -12, 18 -36, 0 0 Z" fill="#52D196"/>
+              <path d="M 0 14 Q 6 42 22 54" fill="none" stroke="#2B9348" stroke-width="6"/>
+              <circle cx="0" cy="6" r="7" fill="#FFE66D"/>
+            </g>
+            <!-- 兩張閃亮小卡圖示 -->
+            <rect x="44" y="136" width="32" height="44" rx="6" fill="#FF9AA2" stroke="#1E222B" stroke-width="3" transform="rotate(-15 60 158)"/>
+            <rect x="184" y="136" width="32" height="44" rx="6" fill="#4CC9F0" stroke="#1E222B" stroke-width="3" transform="rotate(15 200 158)"/>
+          </svg>
+        `
+      },
+      {
+        id: 'double_points',
+        name: '加分加倍卡',
+        weight: 2,
+        tier: 'rare',
+        tierLabel: '稀有卡 2%',
+        borderColor: '#F7C6D0',
+        desc: '加分加倍卡：老師幫你加上20 個榮譽點數。',
+        svg: `
+          <svg viewBox="0 0 260 200" xmlns="http://www.w3.org/2000/svg">
+            <text x="130" y="54" font-size="44" font-weight="900" text-anchor="middle" fill="#FFCA3A" stroke="#1E222B" stroke-width="3" transform="rotate(-5 130 54)">+20!</text>
+            <!-- 煙火星星 -->
+            <polygon points="56,34 60,42 69,43 62,49 64,58 56,53 48,58 50,49 43,43 52,42" fill="#4CC9F0" stroke="#1E222B" stroke-width="2.5"/>
+            <polygon points="204,36 208,44 217,45 210,51 212,60 204,55 196,60 198,51 191,45 200,44" fill="#FF6B6B" stroke="#1E222B" stroke-width="2.5"/>
+            <polygon points="44,96 48,104 57,105 50,111 52,120 44,115 36,120 38,111 31,105 40,104" fill="#FFE66D" stroke="#1E222B" stroke-width="2.5"/>
+            <polygon points="214,94 218,102 227,103 220,109 222,118 214,113 206,118 208,109 201,103 210,102" fill="#FFE66D" stroke="#1E222B" stroke-width="2.5"/>
+            <!-- 高舉雙手歡呼的小朋友 -->
+            <g stroke="#1E222B" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round">
+              <circle cx="130" cy="108" r="24" fill="#FAD2C3"/>
+              <path d="M 106 102 Q 130 78 154 102" fill="#5C4033"/>
+              <path d="M 122 114 Q 130 124 138 114 Z" fill="#FF6B6B"/>
+              <path d="M 102 154 L 112 130 L 148 130 L 158 154 Z" fill="#4CC9F0"/>
+              <path d="M 110 136 L 92 102" fill="none" stroke-width="9" stroke="#4CC9F0"/>
+              <path d="M 110 136 L 92 102" fill="none"/>
+              <path d="M 150 136 L 168 102" fill="none" stroke-width="9" stroke="#4CC9F0"/>
+              <path d="M 150 136 L 168 102" fill="none"/>
+            </g>
+            <text x="130" y="178" font-size="22" font-weight="900" text-anchor="middle" fill="#FFA94D" stroke="#1E222B" stroke-width="1.2">DOUBLE! 雙倍!</text>
+          </svg>
+        `
+      },
+      {
+        id: 'teacher_help',
+        name: '老師代勞卡',
+        weight: 2,
+        tier: 'rare',
+        tierLabel: '稀有卡 2%',
+        borderColor: '#D6C4E8',
+        desc: '老師代勞卡：老師幫你抄一天的聯絡簿。',
+        svg: `
+          <svg viewBox="0 0 260 200" xmlns="http://www.w3.org/2000/svg">
+            <!-- 聯絡簿大圖示 -->
+            <g stroke="#1E222B" stroke-width="3" stroke-linejoin="round" transform="rotate(-14 68 62)">
+              <rect x="44" y="28" width="48" height="66" rx="4" fill="#FFFFFF"/>
+              <text x="68" y="64" font-size="13" font-weight="900" text-anchor="middle" fill="#1E222B" stroke="none">聯絡簿</text>
+            </g>
+            <!-- 愛心與星星 -->
+            <text x="156" y="42" font-size="20" fill="#FF6B6B">♥</text>
+            <text x="208" y="88" font-size="22" fill="#FFE66D" stroke="#1E222B" stroke-width="1.5">✦</text>
+            <!-- 老師認真寫字與旁邊歡呼的學生 -->
+            <g stroke="#1E222B" stroke-width="3" stroke-linejoin="round">
+              <!-- 老師 -->
+              <circle cx="118" cy="76" r="22" fill="#FAD2C3"/>
+              <path d="M 94 82 C 92 48, 144 48, 142 82" fill="#4A3525"/>
+              <circle cx="111" cy="76" r="6" fill="none"/>
+              <circle cx="125" cy="76" r="6" fill="none"/>
+              <rect x="98" y="98" width="40" height="36" rx="8" fill="#FFFFFF"/>
+              <!-- 課桌與打開的簿子 -->
+              <polygon points="56,134 166,134 156,154 46,154" fill="#F8FAFC"/>
+              <rect x="86" y="136" width="54" height="14" fill="#FFF"/>
+              <!-- 歡呼學生 -->
+              <circle cx="184" cy="112" r="18" fill="#FAD2C3"/>
+              <path d="M 166 108 Q 184 90 202 108" fill="#5C4033"/>
+              <path d="M 176 116 Q 184 124 192 116 Z" fill="#FF6B6B"/>
+              <line x1="168" y1="130" x2="152" y2="112"/>
+              <line x1="200" y1="130" x2="216" y2="112"/>
+            </g>
+          </svg>
+        `
+      },
+      {
+        id: 'warm_card',
+        name: '溫馨卡片卡',
+        weight: 2,
+        tier: 'rare',
+        tierLabel: '稀有卡 2%',
+        borderColor: '#F7C6CC',
+        desc: '溫馨卡片卡：獲得老師寫給你的一張鼓勵小卡。',
+        svg: `
+          <svg viewBox="0 0 260 200" xmlns="http://www.w3.org/2000/svg">
+            <!-- 飛舞的信封與愛心 -->
+            <g stroke="#1E222B" stroke-width="2.8" stroke-linejoin="round" transform="rotate(-14 76 54)">
+              <rect x="52" y="38" width="48" height="34" rx="4" fill="#FAD2C3"/>
+              <polygon points="52,38 76,56 100,38" fill="#FFE66D"/>
+            </g>
+            <text x="134" y="76" font-size="22" fill="#FF6B6B">♥</text>
+            <text x="214" y="92" font-size="20" fill="#FF6B6B">♥</text>
+            <!-- 老師遞出寫著「加油！」的卡片給學生 -->
+            <g stroke="#1E222B" stroke-width="3" stroke-linejoin="round">
+              <!-- 左側開心學生 -->
+              <circle cx="68" cy="114" r="20" fill="#FAD2C3"/>
+              <path d="M 48 110 Q 68 88 88 110" fill="#4A3525"/>
+              <path d="M 62 118 Q 68 126 74 118 Z" fill="#FF6B6B"/>
+              <rect x="50" y="134" width="36" height="36" rx="8" fill="#FFFFFF"/>
+              <!-- 右側溫柔老師 -->
+              <circle cx="174" cy="84" r="24" fill="#FAD2C3"/>
+              <path d="M 148 82 C 148 48, 200 48, 200 82" fill="#4A3525"/>
+              <circle cx="166" cy="84" r="6" fill="none"/>
+              <circle cx="180" cy="84" r="6" fill="none"/>
+              <path d="M 148 170 L 156 108 L 194 108 L 202 170 Z" fill="#FFFFFF"/>
+              <!-- 中間加油小卡 -->
+              <g transform="rotate(-10 124 134)">
+                <rect x="98" y="112" width="52" height="42" rx="4" fill="#FFFDF7"/>
+                <text x="124" y="131" font-size="13" font-weight="900" text-anchor="middle" fill="#1E222B" stroke="none">加油！</text>
+                <text x="124" y="148" font-size="14" text-anchor="middle" fill="#FF5964" stroke="none">♥</text>
+              </g>
+            </g>
+          </svg>
+        `
+      }
+    ];
+
+    // 從積分平台的「設定 → 抽獎卡」讀取教師自訂的卡片名稱、說明與權重。
+    // 未設定時維持本頁內建的完整手繪 SVG 卡片；設定僅使用相同網站、相同瀏覽器的 localStorage。
+    try {
+      const teacherId = new URLSearchParams(window.location.search).get('teacher') || '';
+      const saved = JSON.parse(localStorage.getItem(`studentpoints_draw_cards_${teacherId}`) || 'null');
+      if (Array.isArray(saved) && saved.length) {
+        const baseCards = new Map(CARDS_DATA.map(card => [card.id, card]));
+        const configuredCards = saved.filter(card => card.enabled !== false && Number(card.weight) > 0).map((card, index) => {
+          const original = baseCards.get(card.id);
+          return original ? { ...original, ...card, weight: Number(card.weight) } : {
+            id: card.id || `custom_${index}`,
+            name: card.name || '自訂獎卡',
+            desc: card.desc || '老師新增的獎勵卡。',
+            weight: Number(card.weight) || 1,
+            tier: card.tier || 'normal',
+            tierLabel: card.tierLabel || '自訂',
+            borderColor: card.borderColor || '#BCE2F7',
+            svg: `<svg viewBox="0 0 260 190" aria-hidden="true"><rect x="12" y="12" width="236" height="166" rx="22" fill="#EAF7FF" stroke="#2D3142" stroke-width="4"/><text x="130" y="92" text-anchor="middle" font-size="30">🎁</text><text x="130" y="132" text-anchor="middle" font-size="16" font-weight="900" fill="#2D3142">自訂獎勵</text></svg>`
+          };
+        });
+        if (configuredCards.length) CARDS_DATA = configuredCards;
+      }
+    } catch (error) { console.warn('讀取抽獎卡設定失敗，使用預設卡片。', error); }
+
+    // 狀態管理
+    let isMuted = false;
+    let isSpinning = false;
+    let currentCard = null;
+    let drawHistory = [];
+    let customImages = {}; // 儲存老師上傳的自訂圖片 DataURL
+    let knobRotation = 0;
+
+    // DOM 參照
+    const domeBallsGroup = document.getElementById('dome-balls');
+    const machineStage = document.getElementById('machine-stage');
+    const knobGroup = document.getElementById('knob-group');
+    const spinBtn = document.getElementById('spin-btn');
+    const droppedOverlay = document.getElementById('dropped-overlay');
+    const bigCapsuleSvg = document.getElementById('big-capsule-svg');
+    const capsuleTopColor = document.getElementById('capsule-top-color');
+
+    const cardInner = document.getElementById('card-inner');
+    const cardFront = document.getElementById('card-front');
+    const rareBadge = document.getElementById('rare-badge');
+    const cardDashedFrame = document.getElementById('card-dashed-frame');
+    const bonusBanner = document.getElementById('bonus-banner');
+
+    const historyList = document.getElementById('history-list');
+    const drawCountText = document.getElementById('draw-count-text');
+
+    const muteBtn = document.getElementById('mute-btn');
+    const adminBtn = document.getElementById('admin-btn');
+    const adminModal = document.getElementById('admin-modal');
+    const closeModalBtn = document.getElementById('close-modal-btn');
+    const resetHistoryBtn = document.getElementById('reset-history-btn');
+    const probTbody = document.getElementById('prob-tbody');
+
+    /**
+     * 2. Web Audio API 趣味音效合成器（零外部檔案依賴）
+     */
+    const SoundFX = (() => {
+      let ctx = null;
+      function getCtx() {
+        if (!ctx) {
+          const AudioCtx = window.AudioContext || window.webkitAudioContext;
+          if (AudioCtx) ctx = new AudioCtx();
+        }
+        if (ctx && ctx.state === 'suspended') ctx.resume();
+        return ctx;
+      }
+
+      // 轉動把手的咔嗒聲
+      function playCrank() {
+        if (isMuted) return;
+        const c = getCtx();
+        if (!c) return;
+        const now = c.currentTime;
+        for (let i = 0; i < 6; i++) {
+          const osc = c.createOscillator();
+          const gain = c.createGain();
+          osc.type = 'triangle';
+          osc.frequency.setValueAtTime(320 + i * 45, now + i * 0.08);
+          osc.frequency.exponentialRampToValueAtTime(140, now + i * 0.08 + 0.06);
+          gain.gain.setValueAtTime(0.22, now + i * 0.08);
+          gain.gain.exponentialRampToValueAtTime(0.001, now + i * 0.08 + 0.07);
+          osc.connect(gain);
+          gain.connect(c.destination);
+          osc.start(now + i * 0.08);
+          osc.stop(now + i * 0.08 + 0.075);
+        }
+      }
+
+      // 扭蛋掉落咚咚聲
+      function playDrop() {
+        if (isMuted) return;
+        const c = getCtx();
+        if (!c) return;
+        const now = c.currentTime;
+        const osc = c.createOscillator();
+        const gain = c.createGain();
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(520, now);
+        osc.frequency.exponentialRampToValueAtTime(180, now + 0.16);
+        osc.frequency.exponentialRampToValueAtTime(360, now + 0.28);
+        gain.gain.setValueAtTime(0.3, now);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.35);
+        osc.connect(gain);
+        gain.connect(c.destination);
+        osc.start(now);
+        osc.stop(now + 0.36);
+      }
+
+      // 開蛋歡呼和弦（一般 vs 稀有華麗音效）
+      function playReveal(isRare) {
+        if (isMuted) return;
+        const c = getCtx();
+        if (!c) return;
+        const now = c.currentTime;
+        const notes = isRare
+          ? [523.25, 659.25, 783.99, 1046.5, 1318.51, 1567.98]
+          : [523.25, 659.25, 783.99, 1046.5];
+
+        notes.forEach((freq, idx) => {
+          const osc = c.createOscillator();
+          const gain = c.createGain();
+          osc.type = isRare ? 'triangle' : 'sine';
+          const start = now + idx * 0.07;
+          osc.frequency.setValueAtTime(freq, start);
+          gain.gain.setValueAtTime(0.24, start);
+          gain.gain.exponentialRampToValueAtTime(0.001, start + 0.45);
+          osc.connect(gain);
+          gain.connect(c.destination);
+          osc.start(start);
+          osc.stop(start + 0.46);
+        });
+      }
+
+      return { playCrank, playDrop, playReveal };
+    })();
+
+    /**
+     * 3. 繪製透明玻璃罩內的五彩扭蛋球並支援翻滾動畫
+     */
+    const BALL_COLORS = ['#FF5964', '#FFCA3A', '#38B6FF', '#52D196', '#B589D6', '#FF9F1C', '#FF758F'];
+    let domeBallsData = [];
+
+    function initDomeBalls() {
+      const positions = [
+        { x: 115, y: 215 }, { x: 155, y: 218 }, { x: 198, y: 214 }, { x: 242, y: 218 }, { x: 282, y: 212 },
+        { x: 102, y: 182 }, { x: 140, y: 185 }, { x: 180, y: 182 }, { x: 222, y: 186 }, { x: 264, y: 182 }, { x: 296, y: 184 },
+        { x: 118, y: 148 }, { x: 158, y: 150 }, { x: 200, y: 148 }, { x: 242, y: 150 }, { x: 278, y: 148 },
+        { x: 142, y: 116 }, { x: 184, y: 114 }, { x: 226, y: 116 }, { x: 258, y: 118 },
+        { x: 168, y: 84 },  { x: 212, y: 86 }
+      ];
+
+      domeBallsGroup.innerHTML = '';
+      domeBallsData = positions.map((pos, idx) => {
+        const color = BALL_COLORS[idx % BALL_COLORS.length];
+        const rot = (idx * 47) % 360;
+        const g = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+        g.setAttribute('transform', `translate(${pos.x}, ${pos.y}) rotate(${rot})`);
+
+        g.innerHTML = `
+          <circle cx="0" cy="0" r="22" fill="#FFFFFF" stroke="#2D3142" stroke-width="3.5"/>
+          <path d="M -22 0 A 22 22 0 0 1 22 0 Z" fill="${color}" stroke="#2D3142" stroke-width="3.5"/>
+          <line x1="-22" y1="0" x2="22" y2="0" stroke="#2D3142" stroke-width="3.5"/>
+          <circle cx="-7" cy="-9" r="3.5" fill="#FFFFFF" opacity="0.8"/>
+        `;
+        domeBallsGroup.appendChild(g);
+        return { el: g, baseX: pos.x, baseY: pos.y, baseRot: rot };
+      });
+    }
+
+    function tumbleDomeBalls(durationMs = 700) {
+      const start = performance.now();
+      function step(now) {
+        const elapsed = now - start;
+        const progress = Math.min(elapsed / durationMs, 1);
+        const damp = Math.sin(progress * Math.PI); // 中段跳動最大，結束歸位
+
+        domeBallsData.forEach((b, idx) => {
+          const dx = Math.sin(elapsed * 0.025 + idx) * 14 * damp;
+          const dy = -Math.abs(Math.cos(elapsed * 0.03 + idx * 1.3)) * 26 * damp;
+          const drot = b.baseRot + elapsed * 0.6 * (idx % 2 === 0 ? 1 : -1) * damp;
+          b.el.setAttribute('transform', `translate(${b.baseX + dx}, ${b.baseY + dy}) rotate(${drot})`);
+        });
+
+        if (progress < 1) {
+          requestAnimationFrame(step);
+        } else {
+          domeBallsData.forEach(b => {
+            b.el.setAttribute('transform', `translate(${b.baseX}, ${b.baseY}) rotate(${b.baseRot})`);
+          });
+        }
+      }
+      requestAnimationFrame(step);
+    }
+
+    /**
+     * 4. 精準加權隨機抽卡演算法 (總權重 = 100)
+     */
+    function drawWeightedCard() {
+      const totalWeight = CARDS_DATA.reduce((sum, c) => sum + c.weight, 0);
+      let rand = Math.random() * totalWeight;
+      for (const card of CARDS_DATA) {
+        if (rand < card.weight) {
+          return card;
+        }
+        rand -= card.weight;
+      }
+      return CARDS_DATA[0];
+    }
+
+    /**
+     * 5. 渲染卡片正面內容到右側展示區
+     */
+    function renderCardToStage(card) {
+      cardFront.style.setProperty('--card-border-color', card.borderColor);
+
+      if (card.tier === 'rare') {
+        cardFront.classList.add('is-rare');
+        rareBadge.style.display = 'block';
+      } else {
+        cardFront.classList.remove('is-rare');
+        rareBadge.style.display = 'none';
+      }
+
+      // 檢查是否有老師自訂上傳圖片
+      if (customImages[card.id]) {
+        cardDashedFrame.innerHTML = `<img src="${customImages[card.id]}" alt="${card.name}" class="custom-card-img">`;
+      } else {
+        cardDashedFrame.innerHTML = `
+          <h2 class="reward-card-title">${card.name}</h2>
+          <div class="reward-card-illustration">${card.svg}</div>
+          <p class="reward-card-desc">${card.desc}</p>
+        `;
+      }
+
+      // 若抽中「超級幸運卡」，顯示再抽兩張提示橫幅
+      if (card.id === 'super_lucky') {
+        bonusBanner.classList.add('visible');
+      } else {
+        bonusBanner.classList.remove('visible');
+      }
+    }
+
+    /**
+     * 6. 彩帶粒子特效 (Confetti)
+     */
+    const confettiCanvas = document.getElementById('confetti-canvas');
+    const cCtx = confettiCanvas.getContext('2d');
+    let confettiParticles = [];
+
+    function resizeConfetti() {
+      confettiCanvas.width = window.innerWidth;
+      confettiCanvas.height = window.innerHeight;
+    }
+    window.addEventListener('resize', resizeConfetti);
+    resizeConfetti();
+
+    function launchConfetti(isRare = false) {
+      const count = isRare ? 130 : 65;
+      const colors = isRare
+        ? ['#FFD700', '#FF5964', '#38B6FF', '#FFCA3A', '#FF758F', '#52D196']
+        : ['#FF5964', '#FFCA3A', '#38B6FF', '#52D196', '#B589D6'];
+
+      for (let i = 0; i < count; i++) {
+        confettiParticles.push({
+          x: window.innerWidth * 0.65 + (Math.random() - 0.5) * 180,
+          y: window.innerHeight * 0.45,
+          vx: (Math.random() - 0.5) * 16,
+          vy: -Math.random() * 14 - 4,
+          size: Math.random() * 9 + 6,
+          color: colors[Math.floor(Math.random() * colors.length)],
+          rot: Math.random() * 360,
+          vRot: (Math.random() - 0.5) * 14,
+          life: 1
+        });
+      }
+      if (confettiParticles.length === count) {
+        requestAnimationFrame(updateConfetti);
+      }
+    }
+
+    function updateConfetti() {
+      cCtx.clearRect(0, 0, confettiCanvas.width, confettiCanvas.height);
+      confettiParticles.forEach(p => {
+        p.x += p.vx;
+        p.y += p.vy;
+        p.vy += 0.42; // 重力
+        p.vx *= 0.98;
+        p.rot += p.vRot;
+        p.life -= 0.014;
+
+        cCtx.save();
+        cCtx.translate(p.x, p.y);
+        cCtx.rotate((p.rot * Math.PI) / 180);
+        cCtx.globalAlpha = Math.max(0, p.life);
+        cCtx.fillStyle = p.color;
+        cCtx.fillRect(-p.size / 2, -p.size / 2, p.size, p.size * 0.65);
+        cCtx.restore();
+      });
+
+      confettiParticles = confettiParticles.filter(p => p.life > 0);
+      if (confettiParticles.length > 0) {
+        requestAnimationFrame(updateConfetti);
+      }
+    }
+
+    /**
+     * 7. 互動抽卡主流程
+     */
+    let autoOpenTimer = null;
+
+    function startGachaSpin() {
+      if (isSpinning) return;
+      isSpinning = true;
+      spinBtn.disabled = true;
+
+      // 將右側卡片翻回背面準備迎接新卡片
+      cardInner.classList.remove('is-flipped');
+      bonusBanner.classList.remove('visible');
+
+      // 播放轉動音效、旋轉把手、機身震動與玻璃球翻滾
+      SoundFX.playCrank();
+      knobRotation += 360;
+      knobGroup.style.transform = `rotate(${knobRotation}deg)`;
+
+      machineStage.classList.remove('machine-shake');
+      void machineStage.offsetWidth; // 觸發重繪
+      machineStage.classList.add('machine-shake');
+      tumbleDomeBalls(750);
+
+      // 預先依權重抽出卡片
+      currentCard = drawWeightedCard();
+
+      // 0.75 秒後掉出彩色扭蛋
+      setTimeout(() => {
+        SoundFX.playDrop();
+        const capColor = currentCard.tier === 'rare'
+          ? '#FFD700'
+          : BALL_COLORS[Math.floor(Math.random() * BALL_COLORS.length)];
+        capsuleTopColor.setAttribute('fill', capColor);
+
+        droppedOverlay.classList.add('active');
+        bigCapsuleSvg.classList.remove('wobble');
+        void bigCapsuleSvg.offsetWidth;
+        setTimeout(() => bigCapsuleSvg.classList.add('wobble'), 850);
+
+        // 若學生未手動點擊，1.6 秒後自動打開扭蛋（流暢且適合大屏操作）
+        autoOpenTimer = setTimeout(() => {
+          openDroppedCapsule();
+        }, 1600);
+      }, 750);
+    }
+
+    function openDroppedCapsule() {
+      if (!droppedOverlay.classList.contains('active')) return;
+      if (autoOpenTimer) {
+        clearTimeout(autoOpenTimer);
+        autoOpenTimer = null;
+      }
+
+      droppedOverlay.classList.remove('active');
+      renderCardToStage(currentCard);
+
+      // 翻轉展示卡片並播放音效與彩帶
+      requestAnimationFrame(() => {
+        cardInner.classList.add('is-flipped');
+        const isRare = currentCard.tier === 'rare';
+        SoundFX.playReveal(isRare);
+        launchConfetti(isRare);
+      });
+
+      // 加入歷史紀錄
+      drawHistory.unshift(currentCard);
+      updateHistoryUI();
+
+      isSpinning = false;
+      spinBtn.disabled = false;
+    }
+
+    function updateHistoryUI() {
+      drawCountText.textContent = `已抽出：${drawHistory.length} 張`;
+      if (drawHistory.length === 0) {
+        historyList.innerHTML = `<span class="history-empty">尚未抽出卡片，快請第一位小幫手來轉扭蛋吧！</span>`;
+        return;
+      }
+
+      historyList.innerHTML = '';
+      drawHistory.forEach((card, idx) => {
+        const chip = document.createElement('button');
+        chip.className = `history-chip ${card.tier === 'rare' ? 'rare' : ''}`;
+        chip.innerHTML = `${card.tier === 'rare' ? '⭐' : '🎫'} #${drawHistory.length - idx} ${card.name}`;
+        chip.title = '點擊重新檢視這張卡片';
+        chip.addEventListener('click', () => {
+          if (isSpinning) return;
+          renderCardToStage(card);
+          cardInner.classList.add('is-flipped');
+        });
+        historyList.appendChild(chip);
+      });
+    }
+
+    /**
+     * 8. 老師後台機率表與自訂圖片上傳
+     */
+    function buildAdminTable() {
+      probTbody.innerHTML = '';
+      CARDS_DATA.forEach(card => {
+        const tr = document.createElement('tr');
+        const tierClass = card.tier === 'warm' ? 'tier-warm' : (card.tier === 'rare' ? 'tier-rare' : 'tier-normal');
+        tr.innerHTML = `
+          <td><span class="badge-tier ${tierClass}">${card.tierLabel}</span></td>
+          <td style="font-weight: 900;">${card.name}</td>
+          <td style="font-weight: 900; color: #E11D48;">${card.weight}%</td>
+          <td style="font-size: 0.85rem;">${card.desc}</td>
+          <td>
+            <label class="upload-label">
+              📷 上傳圖卡
+              <input type="file" accept="image/*" style="display:none;" data-card-id="${card.id}">
+            </label>
+          </td>
+        `;
+        probTbody.appendChild(tr);
+      });
+
+      // 綁定上傳事件
+      probTbody.querySelectorAll('input[type="file"]').forEach(input => {
+        input.addEventListener('change', (e) => {
+          const file = e.target.files[0];
+          const cardId = e.target.getAttribute('data-card-id');
+          if (!file) return;
+          const reader = new FileReader();
+          reader.onload = (ev) => {
+            customImages[cardId] = ev.target.result;
+            const label = e.target.parentElement;
+            label.style.background = '#BBF7D0';
+            label.childNodes[0].textContent = '✅ 已替換 ';
+            if (currentCard && currentCard.id === cardId) {
+              renderCardToStage(currentCard);
+            }
+          };
+          reader.readAsDataURL(file);
+        });
+      });
+    }
+
+    // 事件監聽綁定
+    spinBtn.addEventListener('click', startGachaSpin);
+    knobGroup.addEventListener('click', startGachaSpin);
+    droppedOverlay.addEventListener('click', openDroppedCapsule);
+
+    muteBtn.addEventListener('click', () => {
+      isMuted = !isMuted;
+      muteBtn.textContent = isMuted ? '🔇 靜音中' : '🔊 音效開';
+    });
+
+    adminBtn.addEventListener('click', () => {
+      adminModal.classList.add('open');
+    });
+
+    closeModalBtn.addEventListener('click', () => {
+      adminModal.classList.remove('open');
+    });
+
+    adminModal.addEventListener('click', (e) => {
+      if (e.target === adminModal) adminModal.classList.remove('open');
+    });
+
+    resetHistoryBtn.addEventListener('click', () => {
+      drawHistory = [];
+      updateHistoryUI();
+      cardInner.classList.remove('is-flipped');
+      bonusBanner.classList.remove('visible');
+    });
+
+    // 初始化
+    initDomeBalls();
+    buildAdminTable();
+  </script>
+</body>
+</html>

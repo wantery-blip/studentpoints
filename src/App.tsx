@@ -106,6 +106,28 @@ const BUILT_IN_PRESETS = [
   { presetKey: 'negative', label: '違規', value: -1 }
 ];
 
+const DRAW_CARD_DEFAULTS = [
+  ['class_applause', '全班讚賞卡', '全班給你 10 秒鐘的熱烈掌聲鼓勵。', 8, '#BCE0E6'],
+  ['dj_song', '點歌 DJ 卡', '下課或潔牙後，挑選 2 首正向歌曲播放給全班聽。', 7, '#FFE58F'],
+  ['class_bonus', '全班加分卡', '老師幫全班加上 5 個榮譽點數。', 7, '#BCE2CE'],
+  ['self_bonus', '自己加分卡', '老師幫你加上 10 個榮譽點數。', 7, '#F7C699'],
+  ['snack_1', '活力補給卡', '可以兌換 1 包餅乾。', 7, '#FAD199'],
+  ['snack_2', '活力加倍卡', '可以兌換 2 包餅乾。', 7, '#FAD199'],
+  ['drink_1', '精力補給卡', '可以兌換一瓶飲料。', 7, '#BCE2F7'],
+  ['less_homework', '作業少寫卡', '課文寫前面一半，另一半用唸的。', 7, '#BCE2F7'],
+  ['exam_hint', '考試有神卡', '小考時，老師可以提示一題不會的題目。', 7, '#BCE2CE'],
+  ['stationery', '文具兌換卡', '可以兌換紅筆、藍筆或橡皮擦。', 7, '#F7C6CC'],
+  ['nap_free', '午休自由卡', '午休時間可安靜做自己的事或寫功課。', 7, '#BCE2E6'],
+  ['show_toy', '今日炫寶卡', '今天可以帶一個玩具到校並於下課使用。', 7, '#D6C4E8'],
+  ['recess_free', '下課自由卡', '可以自由下課。', 7, '#FAD199'],
+  ['super_lucky', '超級幸運卡', '可以再抽兩張卡片！', 2, '#FFE066'],
+  ['double_points', '加分加倍卡', '老師幫你加上 20 個榮譽點數。', 2, '#F7C6D0'],
+  ['teacher_help', '老師代勞卡', '老師幫你抄一天的聯絡簿。', 2, '#D6C4E8'],
+  ['warm_card', '溫馨卡片卡', '獲得老師寫的一張鼓勵小卡。', 2, '#F7C6CC']
+].map(([id, name, desc, weight, borderColor]) => ({ id, name, desc, weight, borderColor, enabled: true }));
+
+const drawCardStorageKey = (teacherId) => `studentpoints_draw_cards_${teacherId}`;
+
 const resolveActionPresets = (storedPresets) => {
   const defaults = BUILT_IN_PRESETS.map(fallback =>
     storedPresets.find(preset => preset.presetKey === fallback.presetKey) || fallback
@@ -1200,6 +1222,11 @@ function Dashboard({ user, teacherId, onLogout }) {
     });
   };
 
+  const openDrawCards = () => {
+    const destination = `${import.meta.env.BASE_URL}draw-card.html?teacher=${encodeURIComponent(teacherId)}`;
+    window.open(destination, '_blank', 'noopener');
+  };
+
   // 更新班級分組數量
   const updateGroupCount = async (count) => {
     if (!selectedClassId || count < 1 || count > 20) return;
@@ -1800,6 +1827,10 @@ function Dashboard({ user, teacherId, onLogout }) {
                 <BarChart3 className="w-4 h-4" />
                 <span>統計</span>
               </button>
+              <button onClick={openDrawCards} className="flex items-center gap-2 bg-amber-500 text-amber-950 px-3 py-2 rounded-lg hover:bg-amber-400 transition shadow-md text-sm font-bold" title="開啟抽獎卡（新分頁）">
+                <Award className="w-4 h-4" />
+                <span>抽獎卡</span>
+              </button>
               <button onClick={() => setShowStudentQueryModal(true)} className="flex items-center gap-2 bg-cyan-600 text-white px-3 py-2 rounded-lg hover:bg-cyan-700 transition shadow-md text-sm font-medium" title="確認或修改學生查詢碼">
                 <Search className="w-4 h-4" />
                 <span>學生查詢</span>
@@ -2160,6 +2191,7 @@ function Dashboard({ user, teacherId, onLogout }) {
           isPrimaryAdmin={(user.email || '').toLowerCase() === PRIMARY_ADMIN_EMAIL}
           honorFontScale={honorFontScale}
           onHonorFontScaleChange={changeHonorFontScale}
+          drawCardTeacherId={teacherId}
         />
       )}
     </div>
@@ -2951,7 +2983,7 @@ function ManagePresetsModal({ onClose, presets, teacherId }) {
 }
 
 // --- 系統設定視窗 (一般 / 班級管理 / 備份與匯入 / 安全) ---
-function SettingsModal({ onClose, classId, teacherUid, currentEmail, currentBackupUrl, classes = [], selectedClassId, selectedClassName, students = [], onUpdateStudent, onDeleteStudent, onBatchImport, isPrimaryAdmin = false, honorFontScale = 1, onHonorFontScaleChange }) {
+function SettingsModal({ onClose, classId, teacherUid, currentEmail, currentBackupUrl, classes = [], selectedClassId, selectedClassName, students = [], onUpdateStudent, onDeleteStudent, onBatchImport, isPrimaryAdmin = false, honorFontScale = 1, onHonorFontScaleChange, drawCardTeacherId }) {
   const { notify, askConfirm, reportQuotaError } = useUI();
   const [activeTab, setActiveTab] = useState('general'); 
   const [email, setEmail] = useState(currentEmail || '');
@@ -2971,6 +3003,12 @@ function SettingsModal({ onClose, classId, teacherUid, currentEmail, currentBack
   const [editingStudentName, setEditingStudentName] = useState('');
   const [editingStudentNumber, setEditingStudentNumber] = useState('');
   const [savingStudent, setSavingStudent] = useState(false);
+  const [drawCards, setDrawCards] = useState(() => {
+    try {
+      const saved = JSON.parse(readLocal(drawCardStorageKey(drawCardTeacherId)) || 'null');
+      return Array.isArray(saved) && saved.length ? saved : DRAW_CARD_DEFAULTS;
+    } catch { return DRAW_CARD_DEFAULTS; }
+  });
 
   useEffect(() => {
     if (!isPrimaryAdmin) { setTeacherRequests([]); return undefined; }
@@ -3143,6 +3181,29 @@ function SettingsModal({ onClose, classId, teacherUid, currentEmail, currentBack
     } finally { setSavingStudent(false); }
   };
 
+  const updateDrawCard = (cardId, field, value) => {
+    setDrawCards(current => current.map(card => card.id === cardId ? { ...card, [field]: field === 'weight' ? Math.max(0, Number(value) || 0) : value } : card));
+  };
+
+  const addDrawCard = () => {
+    const id = `custom_${Date.now()}`;
+    setDrawCards(current => [...current, { id, name: '新獎卡', desc: '請填寫獎勵內容。', weight: 1, borderColor: '#BCE2F7', enabled: true }]);
+  };
+
+  const removeDrawCard = (cardId) => {
+    setDrawCards(current => current.filter(card => card.id !== cardId));
+  };
+
+  const saveDrawCards = () => {
+    const hasEnabledCard = drawCards.some(card => card.enabled !== false && Number(card.weight) > 0);
+    if (!hasEnabledCard) {
+      notify('至少要保留一張已啟用且權重大於 0 的獎卡。', 'error');
+      return;
+    }
+    writeLocal(drawCardStorageKey(drawCardTeacherId), JSON.stringify(drawCards));
+    notify('抽獎卡設定已儲存；重新開啟抽獎卡分頁即可套用。');
+  };
+
   const reviewTeacherRequest = (requestItem, decision) => {
     const approved = decision === 'approved';
     askConfirm(
@@ -3196,6 +3257,7 @@ function SettingsModal({ onClose, classId, teacherUid, currentEmail, currentBack
           <button onClick={() => setActiveTab('general')} className={`flex-shrink-0 px-4 py-3 text-sm font-medium transition ${activeTab === 'general' ? 'text-indigo-600 border-b-2 border-indigo-600 bg-slate-50' : 'text-slate-500 hover:text-slate-700'}`}>一般</button>
           <button onClick={() => setActiveTab('classes')} className={`flex-shrink-0 px-4 py-3 text-sm font-medium transition ${activeTab === 'classes' ? 'text-indigo-600 border-b-2 border-indigo-600 bg-slate-50' : 'text-slate-500 hover:text-slate-700'}`}>班級管理</button>
           <button onClick={() => setActiveTab('backup')} className={`flex-shrink-0 px-4 py-3 text-sm font-medium transition ${activeTab === 'backup' ? 'text-indigo-600 border-b-2 border-indigo-600 bg-slate-50' : 'text-slate-500 hover:text-slate-700'}`}>備份</button>
+          <button onClick={() => setActiveTab('drawCards')} className={`flex-shrink-0 px-4 py-3 text-sm font-medium transition ${activeTab === 'drawCards' ? 'text-indigo-600 border-b-2 border-indigo-600 bg-slate-50' : 'text-slate-500 hover:text-slate-700'}`}>抽獎卡</button>
           <button onClick={() => setActiveTab('roster')} className={`flex-shrink-0 px-4 py-3 text-sm font-medium transition ${activeTab === 'roster' ? 'text-indigo-600 border-b-2 border-indigo-600 bg-slate-50' : 'text-slate-500 hover:text-slate-700'}`}>刪除名單</button>
           <button onClick={() => setActiveTab('security')} className={`flex-shrink-0 px-4 py-3 text-sm font-medium transition ${activeTab === 'security' ? 'text-indigo-600 border-b-2 border-indigo-600 bg-slate-50' : 'text-slate-500 hover:text-slate-700'}`}>安全</button>
           {isPrimaryAdmin && <button onClick={() => setActiveTab('teacherRequests')} className={`flex-shrink-0 px-4 py-3 text-sm font-medium transition ${activeTab === 'teacherRequests' ? 'text-indigo-600 border-b-2 border-indigo-600 bg-slate-50' : 'text-slate-500 hover:text-slate-700'}`}>教師審核{teacherRequests.length ? ` (${teacherRequests.length})` : ''}</button>}
@@ -3302,7 +3364,37 @@ function SettingsModal({ onClose, classId, teacherUid, currentEmail, currentBack
             </div>
           )}
 
-          {/* 4. 刪除名單：目前選取班級的學生可改姓名、改座號或刪除。 */}
+          {/* 4. 抽獎卡：僅影響此教師在目前瀏覽器開啟的抽獎卡新分頁。 */}
+          {activeTab === 'drawCards' && (
+            <div className="space-y-4 max-h-[420px] overflow-y-auto pr-1">
+              <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs text-amber-900">
+                <p className="font-bold">設定抽獎卡與出現機率</p>
+                <p className="mt-1 leading-relaxed">權重越大，抽中的機率越高；設為 0 或取消啟用即不會出現。按下儲存後，重新開啟「抽獎卡」分頁即可使用新設定。</p>
+              </div>
+              <p className="text-xs text-slate-500">目前啟用的總權重：<span className="font-bold text-indigo-700">{drawCards.filter(card => card.enabled !== false).reduce((sum, card) => sum + (Number(card.weight) || 0), 0)}</span></p>
+              {drawCards.map((card, index) => (
+                <div key={card.id} className={`rounded-lg border p-3 space-y-2 ${card.enabled === false ? 'border-slate-200 bg-slate-50 opacity-70' : 'border-indigo-100 bg-indigo-50/30'}`}>
+                  <div className="flex items-center gap-2">
+                    <label className="flex items-center gap-1.5 text-xs font-bold text-slate-700 cursor-pointer"><input type="checkbox" checked={card.enabled !== false} onChange={(event) => updateDrawCard(card.id, 'enabled', event.target.checked)} className="accent-indigo-600" /> 啟用</label>
+                    <span className="ml-auto text-xs text-slate-400">第 {index + 1} 張</span>
+                    <button type="button" onClick={() => removeDrawCard(card.id)} disabled={drawCards.length <= 1} className="p-1 text-slate-400 hover:text-red-600 disabled:opacity-30" title="移除這張獎卡" aria-label={`移除${card.name || '獎卡'}`}><Trash2 className="w-4 h-4" /></button>
+                  </div>
+                  <div className="grid grid-cols-[1fr_82px] gap-2">
+                    <input value={card.name || ''} onChange={(event) => updateDrawCard(card.id, 'name', event.target.value)} className="min-w-0 px-2 py-1.5 text-sm font-bold border rounded bg-white" placeholder="獎卡名稱" aria-label="獎卡名稱" />
+                    <label className="text-xs text-slate-500">權重<input type="number" min="0" step="1" value={card.weight ?? 0} onChange={(event) => updateDrawCard(card.id, 'weight', event.target.value)} className="mt-1 w-full px-2 py-1.5 text-sm border rounded bg-white" aria-label="出現權重" /></label>
+                  </div>
+                  <textarea value={card.desc || ''} onChange={(event) => updateDrawCard(card.id, 'desc', event.target.value)} className="w-full h-16 px-2 py-1.5 text-xs border rounded bg-white resize-none" placeholder="獎勵內容／說明" aria-label="獎勵內容" />
+                </div>
+              ))}
+              <div className="grid grid-cols-2 gap-2 pt-1">
+                <button type="button" onClick={addDrawCard} className="border border-indigo-300 text-indigo-700 bg-white font-bold py-2 rounded-lg text-sm hover:bg-indigo-50">＋ 新增獎卡</button>
+                <button type="button" onClick={() => setDrawCards(DRAW_CARD_DEFAULTS)} className="border border-slate-300 text-slate-600 bg-white font-bold py-2 rounded-lg text-sm hover:bg-slate-50">還原預設</button>
+              </div>
+              <button type="button" onClick={saveDrawCards} className="w-full bg-amber-500 text-amber-950 font-bold py-2.5 rounded-lg hover:bg-amber-400 transition shadow-sm text-sm">儲存抽獎卡設定</button>
+            </div>
+          )}
+
+          {/* 5. 刪除名單：目前選取班級的學生可改姓名、改座號或刪除。 */}
           {activeTab === 'roster' && (
             <div className="space-y-3 max-h-[360px] overflow-y-auto">
               <p className="text-xs text-slate-500">目前班級：<span className="font-bold text-slate-700">{selectedClassName || '未選擇'}</span>。可在此修改姓名、座號，或刪除學生資料。</p>
@@ -3314,7 +3406,7 @@ function SettingsModal({ onClose, classId, teacherUid, currentEmail, currentBack
             </div>
           )}
 
-          {/* 5. 帳號安全 (修改密碼) */}
+          {/* 6. 帳號安全 (修改密碼) */}
           {activeTab === 'security' && (
             <form onSubmit={handleUpdatePassword} className="space-y-4">
               <div><label className="block text-sm font-medium text-slate-700 mb-1">舊密碼</label><input type="password" value={oldPassword} onChange={(e) => setOldPassword(e.target.value)} className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none"/></div>
