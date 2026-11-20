@@ -126,6 +126,28 @@ const DRAW_CARD_DEFAULTS = [
   ['warm_card', '溫馨卡片卡', '獲得老師寫的一張鼓勵小卡。', 2, '#F7C6CC']
 ].map(([id, name, desc, weight, borderColor]) => ({ id, name, desc, weight, borderColor, enabled: true }));
 
+// 學生查分頁的獎勵卡說明。內容依據「班級獎勵卡整理」提供的使用規則，
+// 不含抽卡權重或教師端設定，學生僅可閱讀。
+const STUDENT_REWARD_GUIDE = [
+  { name: '點歌 DJ 卡', description: '一節下課時間或潔牙後，由你挑選 2 首正向歌曲播放給全班聽。', emoji: '🎵', color: 'bg-amber-50 border-amber-200' },
+  { name: '超級幸運卡', description: '可以再抽兩張卡片。', emoji: '🍀', color: 'bg-yellow-50 border-yellow-300' },
+  { name: '全班加分卡', description: '老師幫全班加上 5 個榮譽點數。', emoji: '🏫', color: 'bg-emerald-50 border-emerald-200' },
+  { name: '自己加分卡', description: '老師幫你加上 10 個榮譽點數。', emoji: '⭐', color: 'bg-orange-50 border-orange-200' },
+  { name: '加分加倍卡', description: '老師幫你加上 20 個榮譽點數。', emoji: '✨', color: 'bg-rose-50 border-rose-200' },
+  { name: '活力補給卡', description: '可以兌換 1 包餅乾，在老師的課堂上可以吃，但不影響學習。', emoji: '🍪', color: 'bg-amber-50 border-amber-200' },
+  { name: '活力加倍卡', description: '可以兌換 2 包餅乾，在老師的課堂上可以吃，但不影響學習。', emoji: '🍪🍪', color: 'bg-orange-50 border-orange-200' },
+  { name: '精力補給卡', description: '可以兌換一瓶飲料，在老師的課堂上可以喝，但不影響學習。', emoji: '🧃', color: 'bg-sky-50 border-sky-200' },
+  { name: '作業少寫卡', description: '課文寫前面一半，另一半用唸的；圈詞寫 1 次；成語句子寫 1 次。', emoji: '📖', color: 'bg-indigo-50 border-indigo-200' },
+  { name: '考試有神卡', description: '小考時，老師可以提示你一題不會的題目。', emoji: '💡', color: 'bg-lime-50 border-lime-200' },
+  { name: '文具兌換卡', description: '可以兌換一枝紅筆或一隻藍筆或一個橡皮擦。', emoji: '✏️', color: 'bg-pink-50 border-pink-200' },
+  { name: '老師代勞卡', description: '老師幫你抄一天的聯絡簿。', emoji: '📝', color: 'bg-violet-50 border-violet-200' },
+  { name: '溫馨卡片卡', description: '獲得老師寫給你的一張鼓勵小卡。', emoji: '💌', color: 'bg-rose-50 border-rose-200' },
+  { name: '午休自由卡', description: '午休時間可以不用睡覺，可安靜做自己的事或寫功課。', emoji: '🌤️', color: 'bg-cyan-50 border-cyan-200' },
+  { name: '全班讚賞卡', description: '全班給你 10 秒鐘的熱烈掌聲鼓勵。', emoji: '👏', color: 'bg-teal-50 border-teal-200' },
+  { name: '今日炫寶卡', description: '今天可以帶一個玩具到校，下課可以玩，但不影響上課秩序。', emoji: '🧸', color: 'bg-purple-50 border-purple-200' },
+  { name: '自由下課卡', description: '原本一節大下課不能下課，但可以自由下課。', emoji: '🛝', color: 'bg-blue-50 border-blue-200' }
+];
+
 const drawCardStorageKey = (teacherId) => `studentpoints_draw_cards_${teacherId}`;
 
 const resolveActionPresets = (storedPresets) => {
@@ -469,7 +491,10 @@ export default function App() {
           <StudentDashboard 
             classId={studentViewClassId} 
             onBack={() => setViewMode('student-login')}
+            onShowRewardGuide={() => setViewMode('student-rewards')}
           />
+        ) : viewMode === 'student-rewards' ? (
+          <StudentRewardGuide onBack={() => setViewMode('student-dashboard')} />
         ) : viewMode === 'student-login' ? (
           <StudentLogin 
             onJoin={(cId) => {
@@ -613,7 +638,7 @@ function StudentLogin({ onJoin, onBack }) {
 }
 
 // --- 學生唯讀查分儀表板 ---
-function StudentDashboard({ classId, onBack }) {
+function StudentDashboard({ classId, onBack, onShowRewardGuide }) {
   const [students, setStudents] = useState([]);
   const [groupPoints, setGroupPoints] = useState({});
   const [classInfo, setClassInfo] = useState(null);
@@ -715,6 +740,9 @@ function StudentDashboard({ classId, onBack }) {
             {classInfo ? classInfo.name : '班級榮譽榜'}
           </h1>
           <p className="text-slate-500 text-sm">優良點數即時查詢（唯讀模式）</p>
+          <button type="button" onClick={onShowRewardGuide} className="mt-4 inline-flex items-center gap-2 rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-2 text-sm font-bold text-emerald-700 hover:bg-emerald-100 transition">
+            <Award className="w-4 h-4" /> 查看獎勵卡說明
+          </button>
         </header>
 
         {/* Top 9 榮譽榜 (單列顯示，無座號，前三名金銀銅配色) */}
@@ -783,6 +811,35 @@ function StudentDashboard({ classId, onBack }) {
             </table>
           </div>
         </div>
+      </div>
+    </div>
+  );
+}
+
+// --- 學生獎勵卡說明頁：僅提供規則說明，不會讀寫或改變任何積分。 ---
+function StudentRewardGuide({ onBack }) {
+  return (
+    <div className="min-h-screen bg-gradient-to-b from-emerald-50 via-slate-50 to-sky-50 p-4 sm:p-6 text-slate-800">
+      <div className="max-w-5xl mx-auto">
+        <header className="relative overflow-hidden rounded-2xl bg-white border border-emerald-100 shadow-sm p-6 sm:p-8 text-center">
+          <button type="button" onClick={onBack} className="absolute top-4 left-4 inline-flex items-center gap-1 rounded-lg px-2 py-1.5 text-sm font-medium text-slate-500 hover:bg-slate-100 hover:text-slate-800 transition" title="返回學生查分"><ArrowLeft className="w-4 h-4" /> 返回查分</button>
+          <div className="mx-auto mt-4 mb-3 flex h-14 w-14 items-center justify-center rounded-full bg-amber-100 text-3xl shadow-sm">🎁</div>
+          <h1 className="text-2xl sm:text-3xl font-black text-slate-800">班級獎勵卡說明</h1>
+          <p className="mt-2 text-sm text-slate-500">抽到獎勵卡時，看看可以獲得什麼鼓勵與權利。</p>
+        </header>
+
+        <main className="mt-6 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+          {STUDENT_REWARD_GUIDE.map(card => (
+            <article key={card.name} className={`rounded-2xl border p-5 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md ${card.color}`}>
+              <div className="flex items-start gap-3">
+                <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-white/80 text-2xl shadow-sm" aria-hidden="true">{card.emoji}</span>
+                <div className="min-w-0"><h2 className="font-black text-slate-800">{card.name}</h2><p className="mt-2 text-sm leading-6 text-slate-600">{card.description}</p></div>
+              </div>
+            </article>
+          ))}
+        </main>
+
+        <p className="mx-auto mt-7 max-w-2xl text-center text-xs leading-5 text-slate-500">獎勵卡使用時請依老師指示進行，並一起維護班級秩序與學習時間。</p>
       </div>
     </div>
   );
