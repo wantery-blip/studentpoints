@@ -3463,20 +3463,19 @@ function SharedScorePanel({ student, presets, onUpdatePoints, onClear }) {
   };
 
   return (
-    <section className="mb-5 rounded-xl border border-indigo-100 bg-white shadow-sm min-h-20 p-2 sm:p-3" aria-label="共用加扣分面板">
-      <div className="flex flex-col lg:flex-row lg:items-center gap-2">
-        <div className="shrink-0 flex items-center justify-between gap-2 px-2">
-          <div><p className="text-xs text-slate-400">共同加扣分</p><p className="font-bold text-indigo-800 text-sm">{student ? `${student.studentNumber || '未編號'} ${student.name}` : '請先點選學生'}</p></div>
-          {student && <button onClick={onClear} className="text-xs text-slate-400 hover:text-slate-700 px-2 py-1 rounded hover:bg-slate-100">取消選取</button>}
+    <section className="mb-5" aria-label="共用加扣分面板">
+      <div className="grid grid-cols-3 sm:grid-cols-9 gap-1.5">
+        <div className="h-20 rounded-lg border border-indigo-200 bg-indigo-50 p-1.5 text-center flex flex-col items-center justify-center">
+          <p className="text-[11px] text-indigo-500">共同加扣分</p>
+          <p className="font-bold text-indigo-800 text-sm truncate w-full">{student ? `${student.studentNumber || '未編號'} ${student.name}` : '請先點選學生'}</p>
+          {student && <button onClick={onClear} className="mt-1 text-[11px] text-indigo-600 hover:text-indigo-900 hover:underline">取消選取</button>}
         </div>
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 flex-1">
-          {presets.map(preset => (
-            <button key={preset.id} disabled={!student || updating} onClick={() => applyScore(preset.value, preset.isRedemption ? `兌獎：${preset.label}` : preset.label)} className={`min-h-12 rounded-lg border px-2 text-sm font-bold transition disabled:opacity-40 disabled:cursor-not-allowed ${preset.isRedemption ? 'border-amber-200 text-amber-800 bg-amber-50 hover:bg-amber-100' : preset.value > 0 ? 'border-blue-200 text-blue-700 bg-blue-50 hover:bg-blue-100' : 'border-pink-200 text-pink-700 bg-pink-50 hover:bg-pink-100'}`}>
-              <span className="block text-base leading-none">{preset.isRedemption ? `兌 −${Math.abs(preset.value)}` : preset.value > 0 ? `+${preset.value}` : preset.value}</span><span className="block mt-1 truncate">{preset.label}</span>
-            </button>
-          ))}
-          <button disabled={!student || updating} onClick={() => setCustomOpen(true)} className="min-h-12 rounded-lg border border-dashed border-slate-300 text-slate-600 text-sm font-bold hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed"><Edit3 className="w-4 h-4 inline mr-1" />自訂</button>
-        </div>
+        {presets.map(preset => (
+          <button key={preset.id} disabled={!student || updating} onClick={() => applyScore(preset.value, preset.isRedemption ? `兌獎：${preset.label}` : preset.label)} className={`h-20 rounded-lg border px-1 text-center text-sm font-bold transition disabled:opacity-40 disabled:cursor-not-allowed ${preset.isRedemption ? 'border-amber-200 text-amber-800 bg-amber-50 hover:bg-amber-100' : preset.value > 0 ? 'border-blue-200 text-blue-700 bg-blue-50 hover:bg-blue-100' : 'border-pink-200 text-pink-700 bg-pink-50 hover:bg-pink-100'}`}>
+            <span className="block text-base leading-none">{preset.isRedemption ? `兌 −${Math.abs(preset.value)}` : preset.value > 0 ? `+${preset.value}` : preset.value}</span><span className="block mt-1 truncate">{preset.label}</span>
+          </button>
+        ))}
+        <button disabled={!student || updating} onClick={() => setCustomOpen(true)} className="h-20 rounded-lg border border-dashed border-slate-300 text-slate-600 text-sm font-bold hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed"><Edit3 className="w-4 h-4 inline mr-1" />自訂</button>
       </div>
       {customOpen && student && <form onSubmit={submitCustom} className="mt-3 flex flex-col sm:flex-row gap-2 border-t pt-3"><input autoFocus required type="number" value={customPoints} onChange={event => setCustomPoints(event.target.value)} placeholder="分數，例如 5 或 -3" className="px-3 py-2 border rounded-lg sm:w-44" /><input value={customReason} onChange={event => setCustomReason(event.target.value)} placeholder="原因（選填）" className="px-3 py-2 border rounded-lg flex-1" /><button className="px-4 py-2 bg-indigo-600 text-white font-bold rounded-lg">確認</button><button type="button" onClick={() => setCustomOpen(false)} className="px-3 py-2 text-slate-600">取消</button></form>}
     </section>
@@ -3494,8 +3493,8 @@ const CompactStudentCard = React.memo(function CompactStudentCard({ student, sel
   const score = student.totalPoints ?? student.points;
   const activate = () => onSelect(student);
   return <div role="button" tabIndex={0} onClick={activate} onKeyDown={event => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); activate(); } }} className={`min-h-24 rounded-xl border p-2 flex flex-col justify-between cursor-pointer transition shadow-sm ${selected ? 'border-indigo-500 ring-2 ring-indigo-200 bg-indigo-50' : 'border-slate-200 bg-white hover:border-indigo-300 hover:shadow-md'}`} title="點選後使用上方共同加扣分面板">
-    <div className="flex items-start justify-between gap-1 text-indigo-700 font-extrabold"><span className="text-base">{student.studentNumber || '#'}</span><button type="button" onClick={event => { event.stopPropagation(); onShowHistory(student); }} className="max-w-[72%] truncate text-right text-base hover:underline focus:outline-none" title="查看加扣分紀錄">{student.name}</button></div>
-    <div className={`text-right text-2xl sm:text-3xl font-black leading-none ${score >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>{formatPoints(score)}</div>
+    <div className="flex items-center justify-center gap-1 text-indigo-700 font-extrabold text-center"><span className="text-base shrink-0">{student.studentNumber || '#'}</span><button type="button" onClick={event => { event.stopPropagation(); onShowHistory(student); }} className="max-w-[72%] truncate text-center text-base hover:underline focus:outline-none" title="查看加扣分紀錄">{student.name}</button></div>
+    <div className={`text-center text-2xl sm:text-3xl font-black leading-none ${score >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>{formatPoints(score)}</div>
   </div>;
 });
 
