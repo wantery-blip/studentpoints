@@ -148,6 +148,9 @@ const STUDENT_REWARD_GUIDE = [
   { name: '自由下課卡', description: '原本一節大下課不能下課，但可以自由下課。', emoji: '🛝', color: 'bg-blue-50 border-blue-200' }
 ];
 
+const cardImageUrl = (imageKey) => `${import.meta.env.BASE_URL}reward-cards/${imageKey || 'class_applause'}.jpg`;
+const withCardImages = (cards) => cards.map(card => ({ ...card, imageKey: card.imageKey || card.id || 'class_applause' }));
+const CARD_IMAGE_OPTIONS = DRAW_CARD_DEFAULTS.map(card => ({ id: card.id, name: card.name }));
 const drawCardStorageKey = (teacherId) => `studentpoints_draw_cards_${teacherId}`;
 
 const resolveActionPresets = (storedPresets) => {
@@ -494,7 +497,7 @@ export default function App() {
             onShowRewardGuide={() => setViewMode('student-rewards')}
           />
         ) : viewMode === 'student-rewards' ? (
-          <StudentRewardGuide onBack={() => setViewMode('student-dashboard')} />
+          <StudentRewardGuide classId={studentViewClassId} onBack={() => setViewMode('student-dashboard')} />
         ) : viewMode === 'student-login' ? (
           <StudentLogin 
             onJoin={(cId) => {
@@ -817,7 +820,18 @@ function StudentDashboard({ classId, onBack, onShowRewardGuide }) {
 }
 
 // --- 學生獎勵卡說明頁：僅提供規則說明，不會讀寫或改變任何積分。 ---
-function StudentRewardGuide({ onBack }) {
+function StudentRewardGuide({ classId, onBack }) {
+  const [cards, setCards] = useState(() => withCardImages(STUDENT_REWARD_GUIDE.map(card => ({ ...DRAW_CARD_DEFAULTS.find(defaultCard => defaultCard.name === card.name), ...card }))));
+
+  useEffect(() => {
+    if (!classId) return;
+    const rewardCardRef = doc(db, 'artifacts', appId, 'public', 'data', 'reward_cards', classId);
+    return onSnapshot(rewardCardRef, snapshot => {
+      const savedCards = snapshot.data()?.cards;
+      if (Array.isArray(savedCards) && savedCards.length) setCards(withCardImages(savedCards).filter(card => card.enabled !== false));
+    }, error => console.warn('讀取班級獎勵卡設定失敗，改用預設說明。', error));
+  }, [classId]);
+
   return (
     <div className="min-h-screen bg-gradient-to-b from-emerald-50 via-slate-50 to-sky-50 p-4 sm:p-6 text-slate-800">
       <div className="max-w-5xl mx-auto">
@@ -829,12 +843,10 @@ function StudentRewardGuide({ onBack }) {
         </header>
 
         <main className="mt-6 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-          {STUDENT_REWARD_GUIDE.map(card => (
-            <article key={card.name} className={`rounded-2xl border p-5 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md ${card.color}`}>
-              <div className="flex items-start gap-3">
-                <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-white/80 text-2xl shadow-sm" aria-hidden="true">{card.emoji}</span>
-                <div className="min-w-0"><h2 className="font-black text-slate-800">{card.name}</h2><p className="mt-2 text-sm leading-6 text-slate-600">{card.description}</p></div>
-              </div>
+          {cards.map(card => (
+            <article key={card.id} className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm transition hover:-translate-y-0.5 hover:shadow-md">
+              <img src={cardImageUrl(card.imageKey)} alt={`${card.name} 圖案`} className="aspect-[4/5] w-full object-cover bg-slate-100" loading="lazy" />
+              <div className="p-4"><h2 className="font-black text-slate-800">{card.name}</h2><p className="mt-2 text-sm leading-6 text-slate-600">{card.desc || card.description || '請依老師說明使用此獎勵卡。'}</p></div>
             </article>
           ))}
         </main>
@@ -3060,12 +3072,8 @@ function SettingsModal({ onClose, classId, teacherUid, currentEmail, currentBack
   const [editingStudentName, setEditingStudentName] = useState('');
   const [editingStudentNumber, setEditingStudentNumber] = useState('');
   const [savingStudent, setSavingStudent] = useState(false);
-  const [drawCards, setDrawCards] = useState(() => {
-    try {
-      const saved = JSON.parse(readLocal(drawCardStorageKey(drawCardTeacherId)) || 'null');
-      return Array.isArray(saved) && saved.length ? saved : DRAW_CARD_DEFAULTS;
-    } catch { return DRAW_CARD_DEFAULTS; }
-  });
+  const [drawCards, setDrawCards] = useState(() => withCardImages(DRAW_CARD_DEFAULTS));
+  const [drawCardsLoading, setDrawCardsLoading] = useState(true);
 
   useEffect(() => {
     if (!isPrimaryAdmin) { setTeacherRequests([]); return undefined; }
@@ -3081,6 +3089,17 @@ function SettingsModal({ onClose, classId, teacherUid, currentEmail, currentBack
       notify('無法讀取教師申請，請確認已發布最新 Firestore Rules。', 'error');
     });
   }, [isPrimaryAdmin, notify]);
+
+  useEffect(() => {
+    if (!selectedClassId) { setDrawCards(withCardImages(DRAW_CARD_DEFAULTS)); setDrawCardsLoading(false); return; }
+    setDrawCardsLoading(true);
+    const rewardCardRef = doc(db, 'artifacts', appId, 'public', 'data', 'reward_cards', selectedClassId);
+    return onSnapshot(rewardCardRef, snapshot => {
+      const savedCards = snapshot.data()?.cards;
+      setDrawCards(Array.isArray(savedCards) && savedCards.length ? withCardImages(savedCards) : withCardImages(DRAW_CARD_DEFAULTS));
+      setDrawCardsLoading(false);
+    }, error => { console.error('讀取抽獎卡設定失敗', error); setDrawCardsLoading(false); });
+  }, [selectedClassId]);
 
   const handleUpdateGeneral = async (e) => {
     e.preventDefault();
@@ -3244,21 +3263,30 @@ function SettingsModal({ onClose, classId, teacherUid, currentEmail, currentBack
 
   const addDrawCard = () => {
     const id = `custom_${Date.now()}`;
-    setDrawCards(current => [...current, { id, name: '新獎卡', desc: '請填寫獎勵內容。', weight: 1, borderColor: '#BCE2F7', enabled: true }]);
+    setDrawCards(current => [...current, { id, name: '新獎卡', desc: '請填寫獎勵內容。', weight: 1, borderColor: '#BCE2F7', imageKey: 'class_applause', enabled: true }]);
   };
 
   const removeDrawCard = (cardId) => {
     setDrawCards(current => current.filter(card => card.id !== cardId));
   };
 
-  const saveDrawCards = () => {
+  const saveDrawCards = async () => {
     const hasEnabledCard = drawCards.some(card => card.enabled !== false && Number(card.weight) > 0);
     if (!hasEnabledCard) {
       notify('至少要保留一張已啟用且權重大於 0 的獎卡。', 'error');
       return;
     }
-    writeLocal(drawCardStorageKey(drawCardTeacherId), JSON.stringify(drawCards));
-    notify('抽獎卡設定已儲存；重新開啟抽獎卡分頁即可套用。');
+    if (!selectedClassId) { notify('請先在主畫面選擇要設定的班級。', 'error'); return; }
+    try {
+      await setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'reward_cards', selectedClassId), { classId: selectedClassId, cards: withCardImages(drawCards), updatedAt: serverTimestamp() });
+      // 抽獎卡獨立頁維持同瀏覽器快速讀取；學生說明頁則使用上方 Firestore 班級設定。
+      writeLocal(drawCardStorageKey(drawCardTeacherId), JSON.stringify(withCardImages(drawCards)));
+      notify('抽獎卡設定已儲存；學生說明頁與抽獎卡會同步更新。');
+    } catch (saveError) {
+      console.error('儲存抽獎卡設定失敗', saveError);
+      if (reportQuotaError(saveError)) return;
+      notify('儲存失敗，請確認最新 Firestore Rules 已發布。', 'error');
+    }
   };
 
   const reviewTeacherRequest = (requestItem, decision) => {
@@ -3421,13 +3449,14 @@ function SettingsModal({ onClose, classId, teacherUid, currentEmail, currentBack
             </div>
           )}
 
-          {/* 4. 抽獎卡：僅影響此教師在目前瀏覽器開啟的抽獎卡新分頁。 */}
+          {/* 4. 抽獎卡：每個班級獨立設定，學生說明頁以相同資料顯示。 */}
           {activeTab === 'drawCards' && (
             <div className="space-y-4 max-h-[420px] overflow-y-auto pr-1">
               <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs text-amber-900">
                 <p className="font-bold">設定抽獎卡與出現機率</p>
-                <p className="mt-1 leading-relaxed">權重越大，抽中的機率越高；設為 0 或取消啟用即不會出現。按下儲存後，重新開啟「抽獎卡」分頁即可使用新設定。</p>
+                <p className="mt-1 leading-relaxed">正在設定：{selectedClassName || '未選擇班級'}。權重越大，抽中的機率越高；設為 0 或取消啟用即不會出現。學生獎勵卡說明頁會讀取同一份設定。</p>
               </div>
+              {drawCardsLoading && <p className="text-center text-xs text-slate-400 py-3">讀取獎卡設定中…</p>}
               <p className="text-xs text-slate-500">目前啟用的總權重：<span className="font-bold text-indigo-700">{drawCards.filter(card => card.enabled !== false).reduce((sum, card) => sum + (Number(card.weight) || 0), 0)}</span></p>
               {drawCards.map((card, index) => (
                 <div key={card.id} className={`rounded-lg border p-3 space-y-2 ${card.enabled === false ? 'border-slate-200 bg-slate-50 opacity-70' : 'border-indigo-100 bg-indigo-50/30'}`}>
@@ -3441,11 +3470,13 @@ function SettingsModal({ onClose, classId, teacherUid, currentEmail, currentBack
                     <label className="text-xs text-slate-500">權重<input type="number" min="0" step="1" value={card.weight ?? 0} onChange={(event) => updateDrawCard(card.id, 'weight', event.target.value)} className="mt-1 w-full px-2 py-1.5 text-sm border rounded bg-white" aria-label="出現權重" /></label>
                   </div>
                   <textarea value={card.desc || ''} onChange={(event) => updateDrawCard(card.id, 'desc', event.target.value)} className="w-full h-16 px-2 py-1.5 text-xs border rounded bg-white resize-none" placeholder="獎勵內容／說明" aria-label="獎勵內容" />
+                  <label className="block text-xs text-slate-500">正式卡圖<select value={card.imageKey || card.id || 'class_applause'} onChange={(event) => updateDrawCard(card.id, 'imageKey', event.target.value)} className="mt-1 w-full px-2 py-1.5 text-sm border rounded bg-white"><option value="">使用預設圖案</option>{CARD_IMAGE_OPTIONS.map(option => <option key={option.id} value={option.id}>{option.name}</option>)}</select></label>
+                  <img src={cardImageUrl(card.imageKey || card.id)} alt={`${card.name || '獎卡'} 預覽`} className="h-24 w-full rounded border border-slate-200 object-cover bg-white" loading="lazy" />
                 </div>
               ))}
               <div className="grid grid-cols-2 gap-2 pt-1">
                 <button type="button" onClick={addDrawCard} className="border border-indigo-300 text-indigo-700 bg-white font-bold py-2 rounded-lg text-sm hover:bg-indigo-50">＋ 新增獎卡</button>
-                <button type="button" onClick={() => setDrawCards(DRAW_CARD_DEFAULTS)} className="border border-slate-300 text-slate-600 bg-white font-bold py-2 rounded-lg text-sm hover:bg-slate-50">還原預設</button>
+                <button type="button" onClick={() => setDrawCards(withCardImages(DRAW_CARD_DEFAULTS))} className="border border-slate-300 text-slate-600 bg-white font-bold py-2 rounded-lg text-sm hover:bg-slate-50">還原預設</button>
               </div>
               <button type="button" onClick={saveDrawCards} className="w-full bg-amber-500 text-amber-950 font-bold py-2.5 rounded-lg hover:bg-amber-400 transition shadow-sm text-sm">儲存抽獎卡設定</button>
             </div>

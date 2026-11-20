@@ -239,6 +239,17 @@ service cloud.firestore {
           (!request.resource.data.keys().hasAny(['isRedemption']) || request.resource.data.isRedemption is bool);
         allow delete: if isOwner(resource.data.classId);
       }
+
+      // 班級獎勵卡：教師管理卡片內容、權重與內建圖案；持有正確班級代碼的學生僅可讀取。
+      match /reward_cards/{classId} {
+        allow get: if canReadClass(classId);
+        allow list: if false;
+        allow create, update: if ownsClass(classId) &&
+          request.resource.data.classId == classId &&
+          request.resource.data.cards is list && request.resource.data.cards.size() > 0 &&
+          request.resource.data.cards.size() <= 40;
+        allow delete: if ownsClass(classId);
+      }
     }
     // 預設拒絕所有其他路徑；如果同個 Firebase 專案另有其他系統，勿直接覆蓋其現有規則。
     match /{document=**} { allow read, write: if false; }

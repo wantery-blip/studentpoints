@@ -511,6 +511,13 @@
       height: 100%;
       max-height: 205px;
     }
+    .reward-card-illustration img {
+      width: 100%;
+      height: 100%;
+      max-height: 205px;
+      object-fit: contain;
+      border-radius: 12px;
+    }
 
     .reward-card-desc {
       font-size: clamp(0.95rem, 1.35vw, 1.1rem);
@@ -1825,7 +1832,7 @@
       } else {
         cardDashedFrame.innerHTML = `
           <h2 class="reward-card-title">${card.name}</h2>
-          <div class="reward-card-illustration">${card.svg}</div>
+          <div class="reward-card-illustration">${card.imageKey ? `<img src="reward-cards/${encodeURIComponent(card.imageKey)}.jpg" alt="${card.name}" />` : card.svg}</div>
           <p class="reward-card-desc">${card.desc}</p>
         `;
       }
