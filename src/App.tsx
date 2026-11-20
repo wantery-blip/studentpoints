@@ -1014,6 +1014,9 @@ function Dashboard({ user, teacherId, onLogout }) {
   
   // Modal 開關狀態
   const [isLoggingOut, setIsLoggingOut] = useState(false);
+  const [logoutNotice, setLogoutNotice] = useState('正在將最新資料備份至試算表並安全登出...');
+  const autoLogoutStartedRef = useRef(false);
+  const logoutWithBackupRef = useRef<((automatic?: boolean) => Promise<void>) | null>(null);
   const [showAddModal, setShowAddModal] = useState(false);
   const [showCreateClassModal, setShowCreateClassModal] = useState(false);
   const [showSettingsModal, setShowSettingsModal] = useState(false);
@@ -1339,9 +1342,10 @@ function Dashboard({ user, teacherId, onLogout }) {
   };
 
   // 登出前送出備份，不再為等待固定延遲 1.2 秒而卡住畫面。
-  const handleLogoutWithBackup = async () => {
+  const handleLogoutWithBackup = async (automatic = false) => {
+    setLogoutNotice(automatic ? '閒置超過 25 分鐘，正在備份目前分數並安全登出...' : '正在將最新資料備份至試算表並安全登出...');
+    setIsLoggingOut(true);
     if (backupUrl && students.length > 0) {
-      setIsLoggingOut(true);
       try { await handleCloudUpload(true); }
       catch (err) { console.error('登出備份錯誤', err); }
     }
@@ -1352,6 +1356,30 @@ function Dashboard({ user, teacherId, onLogout }) {
       setIsLoggingOut(false);
     }
   };
+  logoutWithBackupRef.current = handleLogoutWithBackup;
+
+  // 教師管理頁面逾 25 分鐘未操作，先上傳目前班級快照再登出。
+  // 學生查分頁不會掛載 Dashboard，因此不受此計時器影響。
+  useEffect(() => {
+    const IDLE_LIMIT_MS = 25 * 60 * 1000;
+    let timer: number | undefined;
+    const resetIdleTimer = () => {
+      if (autoLogoutStartedRef.current) return;
+      if (timer) window.clearTimeout(timer);
+      timer = window.setTimeout(() => {
+        if (autoLogoutStartedRef.current) return;
+        autoLogoutStartedRef.current = true;
+        void logoutWithBackupRef.current?.(true);
+      }, IDLE_LIMIT_MS);
+    };
+    const events: Array<keyof WindowEventMap> = ['pointerdown', 'pointermove', 'keydown', 'touchstart', 'scroll'];
+    events.forEach(eventName => window.addEventListener(eventName, resetIdleTimer, { passive: true }));
+    resetIdleTimer();
+    return () => {
+      if (timer) window.clearTimeout(timer);
+      events.forEach(eventName => window.removeEventListener(eventName, resetIdleTimer));
+    };
+  }, []);
 
   // --- 批次匯入 / 資料救援 (貼上文字解析：座號 姓名 分數) ---
   const handleBatchImport = async (textData) => {
@@ -1693,7 +1721,7 @@ function Dashboard({ user, teacherId, onLogout }) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-slate-50 flex-col gap-4">
         <Loader2 className="w-12 h-12 text-indigo-600 animate-spin" />
-        <p className="text-slate-600 font-medium">正在將最新資料備份至試算表並安全登出...</p>
+        <p className="text-slate-600 font-medium">{logoutNotice}</p>
       </div>
     );
   }
@@ -1791,7 +1819,7 @@ function Dashboard({ user, teacherId, onLogout }) {
           <button onClick={() => setShowSettingsModal(true)} className="flex items-center gap-2 bg-white text-slate-600 px-3 py-2 rounded-lg hover:bg-slate-50 border border-slate-200 transition shadow-sm text-sm" title="系統設定">
             <Settings className="w-4 h-4" />
           </button>
-          <button onClick={handleLogoutWithBackup} className="flex items-center gap-2 bg-slate-100 text-slate-600 px-3 py-2 rounded-lg hover:bg-slate-200 transition text-sm" title="備份並登出">
+          <button onClick={() => handleLogoutWithBackup()} className="flex items-center gap-2 bg-slate-100 text-slate-600 px-3 py-2 rounded-lg hover:bg-slate-200 transition text-sm" title="備份並登出">
             <LogOut className="w-4 h-4" />
           </button>
         </div>
