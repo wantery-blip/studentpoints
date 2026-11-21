@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo, useRef, useCallback, createContext, useContext } from 'react';
+import { createPortal } from 'react-dom';
 import { initializeApp } from 'firebase/app';
 import { 
   getAuth, 
@@ -149,9 +150,15 @@ const STUDENT_REWARD_GUIDE = [
   { name: '自由下課卡', description: '原本一節大下課不能下課，但可以自由下課。', emoji: '🛝', color: 'bg-blue-50 border-blue-200' }
 ];
 
-const cardImageUrl = (imageKey) => `${import.meta.env.BASE_URL}reward-cards/${imageKey || 'class_applause'}.jpg`;
+const CARD_IMAGE_FILE_PATTERN = /^[a-z0-9][a-z0-9._-]{0,80}\.(jpg|jpeg|png|webp)$/i;
+const cardImageUrl = (cardOrImageKey) => {
+  const imageFile = typeof cardOrImageKey === 'object' ? cardOrImageKey?.imageFile : '';
+  if (imageFile && CARD_IMAGE_FILE_PATTERN.test(imageFile)) return `${import.meta.env.BASE_URL}reward-cards/${imageFile}`;
+  const imageKey = typeof cardOrImageKey === 'object' ? cardOrImageKey?.imageKey : cardOrImageKey;
+  return `${import.meta.env.BASE_URL}reward-cards/${imageKey || 'class_applause'}.jpg`;
+};
 const withCardImages = (cards) => cards.map(card => ({ ...card, imageKey: card.imageKey || card.id || 'class_applause' }));
-const CARD_IMAGE_OPTIONS = DRAW_CARD_DEFAULTS.map(card => ({ id: card.id, name: card.name }));
+const CARD_IMAGE_OPTIONS = DRAW_CARD_DEFAULTS.map(card => ({ id: card.id, name: card.name, file: `${card.id}.jpg` }));
 const drawCardStorageKey = (teacherId) => `studentpoints_draw_cards_${teacherId}`;
 
 const resolveActionPresets = (storedPresets) => {
@@ -170,6 +177,10 @@ const totalPointsFor = (student, groupPoints = {}, divisor = 1) =>
   Number(student.points || 0) + groupContribution(student, groupPoints, divisor);
 
 const formatPoints = (value) => Number.isInteger(value) ? String(value) : Number(value).toFixed(2).replace(/\.00$/, '');
+const formatStudentCardPoints = (value) => {
+  const rounded = Math.round(Number(value || 0) * 10) / 10;
+  return Number.isInteger(rounded) ? String(rounded) : rounded.toFixed(1);
+};
 
 const QUOTA_HOLD_KEY = 'studentpoints_quota_hold';
 
@@ -589,8 +600,8 @@ function StudentLogin({ onJoin, onBack }) {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-emerald-500 to-teal-600 p-4">
-      <div className="bg-white rounded-2xl shadow-2xl p-8 w-full max-w-md transition-all duration-300 relative">
+    <div className="forest-student-login min-h-screen flex items-center justify-center p-4">
+      <div className="forest-student-login-card bg-white rounded-2xl shadow-2xl p-8 w-full max-w-md transition-all duration-300 relative">
         <button 
           onClick={onBack}
           className="absolute top-4 left-4 text-slate-400 hover:text-slate-600 flex items-center gap-1 text-sm font-medium"
@@ -724,7 +735,7 @@ function StudentDashboard({ classId, onBack, onShowRewardGuide }) {
   }
 
   return (
-    <div className="forest-student-board min-h-screen bg-slate-50 font-sans text-slate-800 p-4 sm:p-6 relative">
+    <div className="forest-student-board forest-student-dashboard min-h-screen font-sans text-slate-800 p-4 sm:p-6 relative">
       <button 
         onClick={onBack}
         className="fixed top-4 left-4 z-10 bg-white p-2.5 rounded-full shadow-md text-slate-500 hover:text-slate-800 transition"
@@ -733,7 +744,7 @@ function StudentDashboard({ classId, onBack, onShowRewardGuide }) {
         <ArrowLeft className="w-5 h-5" />
       </button>
 
-      <div className="max-w-5xl mx-auto mt-8">
+      <div className="forest-student-content max-w-5xl mx-auto mt-8">
         {/* 班級標頭 */}
         <header className="forest-class-header bg-white p-5 rounded-xl shadow-sm mb-6 flex flex-col items-center justify-center text-center relative overflow-hidden">
           <div className="absolute top-0 left-0 w-full h-1.5 bg-gradient-to-r from-emerald-400 to-teal-500"></div>
@@ -750,9 +761,9 @@ function StudentDashboard({ classId, onBack, onShowRewardGuide }) {
         </header>
 
         {/* Top 9 榮譽榜 (單列顯示，無座號，前三名金銀銅配色) */}
-        <div className="forest-honor-section mb-8 w-full mx-auto">
+        <div className="forest-honor-section forest-student-honor mb-8 w-full mx-auto">
           <h3 className="forest-honor-heading text-sm font-bold text-slate-500 uppercase mb-3 flex items-center justify-center gap-2">
-            <Crown className="w-4 h-4 text-yellow-500" /> 榮譽榜 (Top 9)
+            <Crown className="w-4 h-4 text-yellow-500" /> 榮譽榜
           </h3>
           <div className="grid grid-cols-3 sm:grid-cols-9 gap-1.5">
             {topStudents.map((s, index) => (
@@ -781,7 +792,7 @@ function StudentDashboard({ classId, onBack, onShowRewardGuide }) {
         </div>
 
         {/* 全班成績一覽表 */}
-        <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+        <div className="forest-student-table bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
           <div className="p-4 bg-slate-50 border-b border-slate-200 flex justify-between items-center">
             <h3 className="font-bold text-slate-700 flex items-center gap-2">
               <List className="w-4 h-4" /> 所有成績
@@ -834,7 +845,7 @@ function StudentRewardGuide({ classId, onBack }) {
   }, [classId]);
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-emerald-50 via-slate-50 to-sky-50 p-4 sm:p-6 text-slate-800">
+    <div className="forest-student-guide min-h-screen p-4 sm:p-6 text-slate-800">
       <div className="max-w-5xl mx-auto">
         <header className="relative overflow-hidden rounded-2xl bg-white border border-emerald-100 shadow-sm p-6 sm:p-8 text-center">
           <button type="button" onClick={onBack} className="absolute top-4 left-4 inline-flex items-center gap-1 rounded-lg px-2 py-1.5 text-sm font-medium text-slate-500 hover:bg-slate-100 hover:text-slate-800 transition" title="返回學生查分"><ArrowLeft className="w-4 h-4" /> 返回查分</button>
@@ -846,7 +857,7 @@ function StudentRewardGuide({ classId, onBack }) {
         <main className="mt-6 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
           {cards.map(card => (
             <article key={card.id} className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm transition hover:-translate-y-0.5 hover:shadow-md">
-              <img src={cardImageUrl(card.imageKey)} alt={`${card.name} 圖案`} className="aspect-[4/5] w-full object-cover bg-slate-100" loading="lazy" />
+              <img src={cardImageUrl(card)} alt={`${card.name} 圖案`} className="aspect-[4/5] w-full object-cover bg-slate-100" loading="lazy" />
               <div className="p-4"><h2 className="font-black text-slate-800">{card.name}</h2><p className="mt-2 text-sm leading-6 text-slate-600">{card.desc || card.description || '請依老師說明使用此獎勵卡。'}</p></div>
             </article>
           ))}
@@ -1113,9 +1124,7 @@ function Dashboard({ user, teacherId, onLogout }) {
   const [showCreateClassModal, setShowCreateClassModal] = useState(false);
   const [showSettingsModal, setShowSettingsModal] = useState(false);
   const [showBatchActionModal, setShowBatchActionModal] = useState(false);
-  const [showPresetsModal, setShowPresetsModal] = useState(false);
   const [showStatsModal, setShowStatsModal] = useState(false);
-  const [showStudentQueryModal, setShowStudentQueryModal] = useState(false);
   const [showDailyPrompt, setShowDailyPrompt] = useState(false);
   const [historyStudent, setHistoryStudent] = useState<any>(null);
   const [historyGroupId, setHistoryGroupId] = useState<number | null>(null);
@@ -1124,6 +1133,25 @@ function Dashboard({ user, teacherId, onLogout }) {
     const stored = Number(readLocal(`honor_font_scale_${teacherId}`));
     return Number.isFinite(stored) && stored >= 0.8 && stored <= 1.6 ? stored : 1;
   });
+  const [studentFontScale, setStudentFontScale] = useState(() => {
+    const stored = Number(readLocal(`student_card_font_scale_${teacherId}`));
+    return Number.isFinite(stored) && stored >= 0.8 && stored <= 1.6 ? stored : 1;
+  });
+
+  // 浮動視窗開啟時，背景頁面不能跟著捲動或撐出額外捲軸。
+  useEffect(() => {
+    const modalOpen = showAddModal || showBatchActionModal || showStatsModal || showSettingsModal;
+    if (!modalOpen) return undefined;
+    const previousOverflow = document.body.style.overflow;
+    const previousPaddingRight = document.body.style.paddingRight;
+    const scrollbarWidth = window.innerWidth - document.documentElement.clientWidth;
+    document.body.style.overflow = 'hidden';
+    if (scrollbarWidth > 0) document.body.style.paddingRight = `${scrollbarWidth}px`;
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      document.body.style.paddingRight = previousPaddingRight;
+    };
+  }, [showAddModal, showBatchActionModal, showStatsModal, showSettingsModal]);
   
   // 新增學生表單狀態
   const [addTab, setAddTab] = useState('single');
@@ -1288,6 +1316,13 @@ function Dashboard({ user, teacherId, onLogout }) {
     setHonorFontScale(current => {
       const next = Math.min(1.6, Math.max(0.8, Number((current + change).toFixed(2))));
       writeLocal(`honor_font_scale_${teacherId}`, String(next));
+      return next;
+    });
+  };
+  const changeStudentFontScale = (change) => {
+    setStudentFontScale(current => {
+      const next = Math.min(1.6, Math.max(0.8, Number((current + change).toFixed(2))));
+      writeLocal(`student_card_font_scale_${teacherId}`, String(next));
       return next;
     });
   };
@@ -1826,8 +1861,8 @@ function Dashboard({ user, teacherId, onLogout }) {
   return (
     <div className="forest-dashboard max-w-7xl mx-auto p-4 sm:p-6 pb-20">
       {/* 頂部功能導覽列 */}
-      <header className="forest-topbar flex flex-col xl:flex-row justify-between items-stretch xl:items-center bg-white p-3 sm:p-4 rounded-xl shadow-sm mb-6 gap-4 sticky top-0 z-20 border-b border-slate-100">
-        <div className="flex items-center gap-2 sm:gap-3 w-full xl:w-auto min-w-0">
+      <header className="forest-topbar flex flex-row flex-nowrap justify-between items-center bg-white p-3 sm:p-4 rounded-xl shadow-sm mb-6 gap-3 sticky top-0 z-20 border-b border-slate-100 overflow-x-auto">
+        <div className="forest-topbar-identity flex shrink-0 items-center gap-2 sm:gap-3 min-w-0">
           <div className="forest-brand-mark bg-indigo-600 p-2 rounded-lg shadow-md">
             <Sprout className="text-white w-6 h-6" />
           </div>
@@ -1843,7 +1878,7 @@ function Dashboard({ user, teacherId, onLogout }) {
                 <select 
                   value={selectedClassId}
                   onChange={handleClassChange}
-                  className="appearance-none bg-slate-50 border border-slate-300 text-slate-900 text-base sm:text-lg font-bold rounded-lg focus:ring-indigo-500 focus:border-indigo-500 block w-full min-w-0 max-w-full pl-3 sm:pl-4 pr-9 py-2 cursor-pointer hover:bg-slate-100 transition"
+                  className="forest-class-select appearance-none bg-slate-50 border border-slate-300 text-slate-900 text-sm font-bold rounded-lg focus:ring-indigo-500 focus:border-indigo-500 block w-full min-w-0 max-w-full pl-3 pr-8 py-1.5 cursor-pointer hover:bg-slate-100 transition"
                 >
                   {classes.map(c => (
                     <option key={c.id} value={c.id}>{c.name}</option>
@@ -1870,29 +1905,27 @@ function Dashboard({ user, teacherId, onLogout }) {
         </div>
         
         {/* 右側操作按鈕區 */}
-        <div className="flex flex-wrap gap-2 w-full xl:w-auto justify-start xl:justify-end items-center">
+        <div className="flex flex-nowrap shrink-0 gap-2 justify-end items-center">
           {selectedClassId && (
             <>
-              {/* 列表模式 / 小組模式 切換器 */}
-              <div className="flex bg-slate-100 rounded-lg p-1 mr-1">
+              <div className="forest-top-view-switcher flex shrink-0 p-1" aria-label="切換單人或小組管理">
                 <button
                   onClick={() => setDashboardView('list')}
-                  className={`px-3 py-1.5 rounded-md text-sm font-medium flex items-center gap-1 transition ${dashboardView === 'list' ? 'bg-white shadow text-indigo-600' : 'text-slate-500 hover:text-slate-700'}`}
+                  className={`flex items-center rounded-md p-2 text-sm font-bold transition ${dashboardView === 'list' ? 'bg-white shadow text-indigo-600' : 'text-slate-500 hover:text-slate-700'}`}
+                  title="單人"
+                  aria-label="單人積分管理"
                 >
-                  <Users className="w-4 h-4" /> 列表
+                  <User className="h-4 w-4" />
                 </button>
                 <button
                   onClick={() => setDashboardView('group')}
-                  className={`px-3 py-1.5 rounded-md text-sm font-medium flex items-center gap-1 transition ${dashboardView === 'group' ? 'bg-white shadow text-indigo-600' : 'text-slate-500 hover:text-slate-700'}`}
+                  className={`flex items-center rounded-md p-2 text-sm font-bold transition ${dashboardView === 'group' ? 'bg-white shadow text-indigo-600' : 'text-slate-500 hover:text-slate-700'}`}
+                  title="小組"
+                  aria-label="小組積分管理"
                 >
-                  <LayoutGrid className="w-4 h-4" /> 小組
+                  <Users className="h-4 w-4" />
                 </button>
               </div>
-
-              <button onClick={() => handleCloudUpload(false)} className="flex items-center gap-2 bg-blue-600 text-white px-3 py-2 rounded-lg hover:bg-blue-700 transition shadow-md text-sm font-medium">
-                {backupUrl ? <CloudUpload className="w-4 h-4" /> : <Mail className="w-4 h-4" />}
-                <span className="hidden sm:inline">備份上傳</span>
-              </button>
               <button onClick={() => setShowBatchActionModal(true)} className="flex items-center gap-2 bg-pink-600 text-white px-3 py-2 rounded-lg hover:bg-pink-700 transition shadow-md text-sm font-medium">
                 <Zap className="w-4 h-4" />
                 <span>多人加分</span>
@@ -1905,10 +1938,6 @@ function Dashboard({ user, teacherId, onLogout }) {
                 <Award className="w-4 h-4" />
                 <span>抽獎卡</span>
               </button>
-              <button onClick={() => setShowStudentQueryModal(true)} className="flex items-center gap-2 bg-cyan-600 text-white px-3 py-2 rounded-lg hover:bg-cyan-700 transition shadow-md text-sm font-medium" title="確認或修改學生查詢碼">
-                <Search className="w-4 h-4" />
-                <span>學生查詢</span>
-              </button>
               <button onClick={() => setShowAddModal(true)} className="flex items-center gap-2 bg-indigo-600 text-white px-3 py-2 rounded-lg hover:bg-indigo-700 transition shadow-md text-sm font-medium">
                 <UserPlus className="w-4 h-4" />
                 <span>學生</span>
@@ -1918,9 +1947,9 @@ function Dashboard({ user, teacherId, onLogout }) {
 
           <div className="w-px h-8 bg-slate-200 mx-1 hidden sm:block"></div>
           
-          <button onClick={() => setShowPresetsModal(true)} className="flex items-center gap-2 bg-white text-slate-600 px-3 py-2 rounded-lg hover:bg-slate-50 border border-slate-200 transition shadow-sm text-sm" title="獎勵項目設定">
-            <List className="w-4 h-4" />
-          </button>
+          {selectedClassId && <button onClick={() => handleCloudUpload(false)} className="flex items-center justify-center bg-white text-slate-600 p-2 rounded-lg hover:bg-slate-50 border border-slate-200 transition shadow-sm" title="備份上傳" aria-label="備份上傳">
+            {backupUrl ? <CloudUpload className="w-4 h-4" /> : <Mail className="w-4 h-4" />}
+          </button>}
           <button onClick={() => setShowSettingsModal(true)} className="flex items-center gap-2 bg-white text-slate-600 px-3 py-2 rounded-lg hover:bg-slate-50 border border-slate-200 transition shadow-sm text-sm" title="系統設定">
             <Settings className="w-4 h-4" />
           </button>
@@ -1952,12 +1981,13 @@ function Dashboard({ user, teacherId, onLogout }) {
         </div>
       ) : (
         <>
-          {/* Top 9 榮譽榜：字體可調整，卡片邊框與尺寸固定。 */}
-          <div className="forest-honor-section mb-4 animate-fade-in-up w-full mx-auto">
+          <div className="forest-workspace animate-fade-in-up">
+          {/* 左欄：Top 9 榮譽榜。 */}
+          <aside className="forest-honor-section forest-honor-sidebar">
             <h3 className="forest-honor-heading text-sm font-bold text-slate-500 uppercase mb-3 flex items-center justify-center gap-2">
-              <Crown className="w-4 h-4 text-yellow-500" /> 榮譽榜 (Top 9)
+              <Crown className="w-4 h-4 text-yellow-500" /> 榮譽榜
             </h3>
-            <div className="grid grid-cols-3 sm:grid-cols-9 gap-1.5">
+            <div className="forest-honor-list grid grid-cols-1 gap-2">
               {topStudents.length === 0 ? (
                 <div className="col-span-full text-center py-6 text-slate-400 bg-white rounded-xl border border-dashed border-slate-300">
                   此班級尚無學生資料
@@ -1988,17 +2018,9 @@ function Dashboard({ user, teacherId, onLogout }) {
                 ))
               )}
             </div>
-          </div>
+          </aside>
 
-          {dashboardView === 'list' && (
-            <SharedScorePanel
-              student={selectedScoreStudent}
-              presets={actionPresets}
-              onUpdatePoints={updatePoints}
-              onClear={() => setSelectedScoreStudent(null)}
-            />
-          )}
-
+          <main className="forest-main-workspace min-w-0">
           {/* 切換顯示：列表模式 vs 小組模式 */}
           {dashboardView === 'list' ? (
             students.length === 0 ? (
@@ -2008,7 +2030,7 @@ function Dashboard({ user, teacherId, onLogout }) {
                 <p className="text-slate-400 text-sm mt-1">點擊上方「學生」按鈕新增名單</p>
               </div>
             ) : (
-              <div className="grid grid-cols-3 sm:grid-cols-5 lg:grid-cols-7 xl:grid-cols-9 gap-2">
+              <div className="forest-student-grid grid grid-cols-3 sm:grid-cols-5 lg:grid-cols-7 xl:grid-cols-9 gap-2">
                 {displayedStudents.map(student => (
                   <CompactStudentCard
                     key={student.id} 
@@ -2016,6 +2038,7 @@ function Dashboard({ user, teacherId, onLogout }) {
                     selected={selectedScoreStudent?.id === student.id}
                     onSelect={setSelectedScoreStudent}
                     onShowHistory={setHistoryStudent}
+                    fontScale={studentFontScale}
                   />
                 ))}
               </div>
@@ -2029,11 +2052,12 @@ function Dashboard({ user, teacherId, onLogout }) {
               presets={actionPresets}
               onAssignGroup={handleAssignGroup}
               onRemoveFromGroup={handleRemoveFromGroup}
-              onUpdateGroupCount={updateGroupCount}
               onGroupPointAction={handleGroupPoints}
               onShowGroupHistory={setHistoryGroupId}
             />
           )}
+          </main>
+          </div>
         </>
       )}
 
@@ -2092,9 +2116,9 @@ function Dashboard({ user, teacherId, onLogout }) {
 
       {/* 3. 新增學生視窗 (單筆 / 批次) */}
       {showAddModal && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50 backdrop-blur-sm">
-          <div className="bg-white rounded-xl shadow-2xl w-full max-w-sm overflow-hidden animate-fade-in-up">
-            <div className="bg-indigo-600 p-4 flex justify-between items-center">
+        <div className="forest-modal-overlay fixed inset-0 flex items-center justify-center p-4 z-[110] backdrop-blur-sm">
+          <div className="forest-modal bg-white rounded-xl shadow-2xl w-full max-w-sm overflow-hidden animate-fade-in-up">
+            <div className="forest-modal-titlebar bg-indigo-600 p-4 flex justify-between items-center">
               <h3 className="text-white font-bold flex items-center gap-2">
                 <UserPlus className="w-5 h-5" /> 新增學生 ({selectedClass?.name})
               </h3>
@@ -2209,16 +2233,12 @@ function Dashboard({ user, teacherId, onLogout }) {
         />
       )}
 
-      {showStudentQueryModal && (
-        <StudentQueryModal
-          classes={classes}
-          teacherId={teacherId}
-          selectedClassId={selectedClassId}
-          onSelectClass={(classId) => {
-            setSelectedClassId(classId);
-            writeLocal(`last_selected_class_${teacherId}`, classId);
-          }}
-          onClose={() => setShowStudentQueryModal(false)}
+      {selectedScoreStudent && (
+        <SharedScoreModal
+          student={selectedScoreStudent}
+          presets={actionPresets}
+          onUpdatePoints={updatePoints}
+          onClose={() => setSelectedScoreStudent(null)}
         />
       )}
 
@@ -2238,16 +2258,7 @@ function Dashboard({ user, teacherId, onLogout }) {
         />
       )}
 
-      {/* 6. 自訂獎勵項目設定視窗 */}
-      {showPresetsModal && (
-        <ManagePresetsModal 
-          onClose={() => setShowPresetsModal(false)}
-          presets={actionPresets}
-          teacherId={teacherId}
-        />
-      )}
-
-      {/* 7. 系統設定視窗 (一般 / 班級管理 / 備份與匯入 / 帳號安全) */}
+      {/* 6. 系統設定視窗 (一般 / 班級管理 / 獎勵設定 / 備份與匯入 / 帳號安全) */}
       {showSettingsModal && (
         <SettingsModal 
           onClose={() => setShowSettingsModal(false)} 
@@ -2265,7 +2276,11 @@ function Dashboard({ user, teacherId, onLogout }) {
           isPrimaryAdmin={(user.email || '').toLowerCase() === PRIMARY_ADMIN_EMAIL}
           honorFontScale={honorFontScale}
           onHonorFontScaleChange={changeHonorFontScale}
+          studentFontScale={studentFontScale}
+          onStudentFontScaleChange={changeStudentFontScale}
           drawCardTeacherId={teacherId}
+          presets={actionPresets}
+          presetTeacherId={teacherId}
         />
       )}
     </div>
@@ -2426,13 +2441,51 @@ function GroupActionModal({ groupId, onClose, onConfirm }) {
   );
 }
 
-// --- 小組管理視圖元件 ---
-function GroupView({ students, totalGroups, groupPoints, pointDivisor, presets, onAssignGroup, onRemoveFromGroup, onUpdateGroupCount, onGroupPointAction, onShowGroupHistory }) {
-  const [groupCountInput, setGroupCountInput] = useState(totalGroups);
-  const [inputMap, setInputMap] = useState({}); 
-  const [customGroupId, setCustomGroupId] = useState<number | null>(null);
+function GroupScoreModal({ groupId, currentPoints, presets, onConfirm, onClose }) {
+  const [customOpen, setCustomOpen] = useState(false);
+  const [customPoints, setCustomPoints] = useState('');
+  const [customReason, setCustomReason] = useState('');
+  const [updating, setUpdating] = useState(false);
+  const applyScore = async (points, reason) => {
+    if (updating) return;
+    setUpdating(true);
+    try {
+      await onConfirm(points, reason);
+      setCustomOpen(false);
+    } finally { setUpdating(false); }
+  };
+  const submitCustom = async (event) => {
+    event.preventDefault();
+    const points = Number(customPoints);
+    if (!Number.isFinite(points) || points === 0) return;
+    await applyScore(points, customReason.trim() || '小組自訂加扣分');
+    setCustomPoints(''); setCustomReason('');
+  };
+  const actionPresets = presets.filter(preset => !preset.isRedemption);
+  return createPortal(
+    <div className="fixed inset-0 z-[120] flex items-center justify-center bg-black/45 p-4 backdrop-blur-sm" role="dialog" aria-modal="true" aria-label={`第 ${groupId} 組共同加扣分`}>
+      <div className="forest-score-modal w-full max-w-2xl overflow-hidden rounded-2xl bg-[#fffef9] shadow-2xl animate-fade-in-up">
+        <div className="forest-score-modal-titlebar flex items-center justify-between px-5 py-4">
+          <div><p className="text-xs font-bold tracking-[.14em] text-white/70">小組競賽操作</p><h3 className="text-lg font-bold text-white">第 {groupId} 組共同加扣分</h3></div>
+          <button type="button" onClick={onClose} className="rounded-full p-2 text-white/85 hover:bg-white/15 hover:text-white" aria-label="關閉小組加扣分視窗"><X className="h-5 w-5" /></button>
+        </div>
+        <div className="p-4 sm:p-5">
+          <p className="mb-3 text-sm text-slate-600">目前小組積分：<strong className="text-emerald-700">{formatPoints(currentPoints)}</strong></p>
+          <div className="forest-score-grid grid grid-cols-2 sm:grid-cols-4 gap-2">
+            {actionPresets.map(preset => <button key={preset.id || preset.presetKey} disabled={updating} onClick={() => applyScore(preset.value, preset.label)} className={`h-20 rounded-lg border px-1 text-center text-sm font-bold transition disabled:opacity-40 ${preset.value > 0 ? 'border-blue-200 text-blue-700 bg-blue-50 hover:bg-blue-100' : 'border-pink-200 text-pink-700 bg-pink-50 hover:bg-pink-100'}`}><span className="block text-base leading-none">{preset.value > 0 ? `+${preset.value}` : preset.value}</span><span className="block mt-1 truncate">{preset.label}</span></button>)}
+            <button disabled={updating} onClick={() => setCustomOpen(true)} className="h-20 rounded-lg border border-dashed border-slate-300 text-slate-600 text-sm font-bold hover:bg-slate-50 disabled:opacity-40"><Edit3 className="w-4 h-4 inline mr-1" />自訂</button>
+          </div>
+          {customOpen && <form onSubmit={submitCustom} className="mt-4 flex flex-col sm:flex-row gap-2 border-t border-slate-200 pt-4"><input autoFocus required type="number" value={customPoints} onChange={event => setCustomPoints(event.target.value)} placeholder="分數，例如 5 或 -3" className="px-3 py-2 border rounded-lg sm:w-44" /><input value={customReason} onChange={event => setCustomReason(event.target.value)} placeholder="原因（選填）" className="px-3 py-2 border rounded-lg flex-1" /><button className="px-4 py-2 bg-indigo-600 text-white font-bold rounded-lg">確認</button><button type="button" onClick={() => setCustomOpen(false)} className="px-3 py-2 text-slate-600">取消</button></form>}
+        </div>
+      </div>
+    </div>, document.body
+  );
+}
 
-  useEffect(() => { setGroupCountInput(totalGroups); }, [totalGroups]);
+// --- 小組管理視圖元件 ---
+function GroupView({ students, totalGroups, groupPoints, pointDivisor, presets, onAssignGroup, onRemoveFromGroup, onGroupPointAction, onShowGroupHistory }) {
+  const [inputMap, setInputMap] = useState({}); 
+  const [scoreGroupId, setScoreGroupId] = useState<number | null>(null);
 
   const groups = Array.from({ length: totalGroups }, (_, i) => i + 1);
 
@@ -2457,44 +2510,20 @@ function GroupView({ students, totalGroups, groupPoints, pointDivisor, presets, 
 
   return (
     <div className="animate-fade-in">
-      {/* 小組數量設定列 */}
-      <div className="bg-white p-4 rounded-xl shadow-sm mb-6 flex flex-wrap items-center justify-between gap-4 border border-slate-100">
-        <h3 className="text-lg font-bold text-slate-800 flex items-center gap-2">
-          <LayoutGrid className="w-5 h-5 text-indigo-600" /> 小組競賽管理
-        </h3>
-        <div className="flex items-center gap-2">
-          <span className="text-sm text-slate-600">分組數量:</span>
-          <input 
-            type="number" 
-            min="1" 
-            max="20"
-            value={groupCountInput}
-            onChange={(e) => setGroupCountInput(parseInt(e.target.value) || 1)}
-            className="w-16 px-2 py-1 border rounded text-center font-bold"
-          />
-          <button 
-            onClick={() => onUpdateGroupCount(groupCountInput)}
-            className="text-xs bg-indigo-600 text-white px-3 py-1.5 rounded hover:bg-indigo-700 font-medium shadow-sm"
-          >
-            套用組數
-          </button>
-        </div>
-      </div>
-
       {/* 各小組卡片網格 */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+      <div className="forest-group-grid grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
         {groups.map(groupId => {
           const members = getGroupMembers(groupId);
           return (
-            <div key={groupId} className="bg-white rounded-xl shadow-sm border border-slate-200 flex flex-col h-80">
+            <div key={groupId} role="button" tabIndex={0} onClick={() => setScoreGroupId(groupId)} onKeyDown={event => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); setScoreGroupId(groupId); } }} className="forest-group-card bg-white rounded-xl shadow-sm border border-slate-200 flex flex-col h-80 cursor-pointer">
               {/* 小組標題 */}
               <div className="p-3 bg-slate-50 border-b border-slate-100 flex justify-between items-center rounded-t-xl">
-                <button type="button" onClick={() => onShowGroupHistory(groupId)} className="font-bold text-slate-700 hover:text-indigo-600 hover:underline focus:outline-none focus:ring-2 focus:ring-indigo-300 rounded" title="查看本組加扣分紀錄">第 {groupId} 組</button>
+                <span className="font-bold text-slate-700">第 {groupId} 組</span>
                 <div className="flex items-center gap-1.5"><span className="text-xs text-slate-500">小組 {formatPoints(groupPoints[groupId] || 0)} ÷ {formatPoints(pointDivisor)}</span><span className="text-xs bg-indigo-100 text-indigo-700 font-bold px-2 py-0.5 rounded-full">{members.length} 人</span></div>
               </div>
               
               {/* 輸入座號加入組員 */}
-              <div className="p-2 border-b border-slate-100">
+              <div className="p-2 border-b border-slate-100" onClick={event => event.stopPropagation()}>
                 <form onSubmit={(e) => handleSeatSubmit(groupId, e)} className="flex gap-2">
                   <input 
                     type="text" 
@@ -2510,7 +2539,7 @@ function GroupView({ students, totalGroups, groupPoints, pointDivisor, presets, 
               </div>
 
               {/* 組員名單 */}
-              <div className="flex-1 overflow-y-auto p-2 custom-scrollbar">
+              <div className="flex-1 overflow-y-auto p-2 custom-scrollbar" onClick={event => event.stopPropagation()}>
                 {members.length === 0 ? (
                   <p className="text-center text-slate-400 text-xs mt-6">尚無成員，可輸入 1,2,3 批次加入</p>
                 ) : (
@@ -2524,7 +2553,7 @@ function GroupView({ students, totalGroups, groupPoints, pointDivisor, presets, 
                         <div className="flex items-center gap-2">
                           <span className={`font-bold ${m.totalPoints >= 0 ? 'text-indigo-600' : 'text-red-500'}`}>{formatPoints(m.totalPoints)}</span>
                           <button
-                            onClick={() => onRemoveFromGroup(m.id)}
+                            onClick={(event) => { event.stopPropagation(); onRemoveFromGroup(m.id); }}
                             className="text-slate-300 hover:text-red-500 opacity-0 group-hover:opacity-100 transition"
                             title="移出此組"
                           >
@@ -2537,36 +2566,15 @@ function GroupView({ students, totalGroups, groupPoints, pointDivisor, presets, 
                 )}
               </div>
 
-              {/* 小組連動加扣分：與個人卡片共用預設／自訂獎勵項目。 */}
-              <div className="p-2.5 border-t border-slate-100 bg-slate-50 rounded-b-xl">
-                <div className="grid grid-cols-2 gap-2 max-h-24 overflow-y-auto custom-scrollbar">
-                  {presets.filter(preset => !preset.isRedemption).map(preset => (
-                    <button
-                      key={preset.id || preset.presetKey}
-                      type="button"
-                      onClick={() => onGroupPointAction(groupId, preset.value, preset.label)}
-                      className={`bg-white border py-1.5 rounded-lg text-xs font-bold transition shadow-sm ${preset.value > 0 ? 'border-indigo-200 text-indigo-600 hover:bg-indigo-50' : 'border-red-200 text-red-600 hover:bg-red-50'}`}
-                    >
-                      {preset.value > 0 ? `+${preset.value}` : preset.value} {preset.label}
-                    </button>
-                  ))}
-                </div>
-                <button type="button" onClick={() => setCustomGroupId(groupId)} className="w-full mt-2 bg-white border border-slate-300 border-dashed text-slate-500 py-1.5 rounded-lg text-xs font-bold hover:bg-slate-100 hover:text-indigo-600 transition"><Edit3 className="w-3.5 h-3.5 inline mr-1" />自訂加扣分</button>
+              <div className="forest-group-card-footer p-2.5 border-t border-slate-100 rounded-b-xl">
+                <button type="button" onClick={(event) => { event.stopPropagation(); onShowGroupHistory(groupId); }} className="text-xs text-slate-500 hover:text-indigo-600 hover:underline" title="查看本組加扣分紀錄"><History className="inline h-3.5 w-3.5 mr-1" />加扣分紀錄</button>
+                <span className="text-xs font-bold text-emerald-700">點選小組加扣分</span>
               </div>
             </div>
           );
         })}
       </div>
-      {customGroupId !== null && (
-        <GroupActionModal
-          groupId={customGroupId}
-          onClose={() => setCustomGroupId(null)}
-          onConfirm={async (points, reason) => {
-            await onGroupPointAction(customGroupId, points, reason);
-            setCustomGroupId(null);
-          }}
-        />
-      )}
+      {scoreGroupId !== null && <GroupScoreModal groupId={scoreGroupId} currentPoints={groupPoints[scoreGroupId] || 0} presets={presets} onClose={() => setScoreGroupId(null)} onConfirm={(points, reason) => onGroupPointAction(scoreGroupId, points, reason)} />}
     </div>
   );
 }
@@ -2691,9 +2699,9 @@ function StatsModal({ onClose, students, classId }) {
   };
 
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50 backdrop-blur-sm">
-      <div className="bg-white rounded-xl shadow-2xl w-full max-w-2xl overflow-hidden animate-fade-in-up flex flex-col max-h-[90vh]">
-        <div className="bg-emerald-600 p-4 flex justify-between items-center flex-shrink-0">
+    <div className="forest-modal-overlay fixed inset-0 flex items-center justify-center p-4 z-[110] backdrop-blur-sm">
+      <div className="forest-modal bg-white rounded-xl shadow-2xl w-full max-w-2xl overflow-hidden animate-fade-in-up flex flex-col max-h-[90vh]">
+        <div className="forest-modal-titlebar bg-emerald-600 p-4 flex justify-between items-center flex-shrink-0">
           <h3 className="text-white font-bold flex items-center gap-2">
             <BarChart3 className="w-5 h-5" /> 班級分數統計 ({classId})
           </h3>
@@ -2811,9 +2819,9 @@ function BatchActionModal({ onClose, onConfirm, presets, students }) {
   );
 
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50 backdrop-blur-sm">
-      <div className="bg-white rounded-xl shadow-2xl w-full max-w-md overflow-hidden animate-fade-in-up">
-        <div className="bg-pink-600 p-4 flex justify-between items-center">
+    <div className="forest-modal-overlay fixed inset-0 flex items-center justify-center p-4 z-[110] backdrop-blur-sm">
+      <div className="forest-modal bg-white rounded-xl shadow-2xl w-full max-w-md overflow-hidden animate-fade-in-up">
+        <div className="forest-modal-titlebar bg-pink-600 p-4 flex justify-between items-center">
           <h3 className="text-white font-bold flex items-center gap-2">
             <Zap className="w-5 h-5" /> 多人加扣分
           </h3>
@@ -2898,7 +2906,7 @@ function BatchActionModal({ onClose, onConfirm, presets, students }) {
 }
 
 // --- 自訂獎勵項目設定視窗 ---
-function ManagePresetsModal({ onClose, presets, teacherId }) {
+function ManagePresetsModal({ onClose = () => {}, presets, teacherId, embedded = false }) {
   const { notify, askConfirm, reportQuotaError } = useUI();
   const [label, setLabel] = useState('');
   const [value, setValue] = useState('');
@@ -2978,16 +2986,16 @@ function ManagePresetsModal({ onClose, presets, teacherId }) {
   };
 
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50 backdrop-blur-sm">
-      <div className="bg-white rounded-xl shadow-2xl w-full max-w-md overflow-hidden animate-fade-in-up flex flex-col max-h-[90vh]">
-        <div className="bg-indigo-600 p-4 flex justify-between items-center flex-shrink-0">
+    <div className={embedded ? '' : 'fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50 backdrop-blur-sm'}>
+      <div className={embedded ? 'space-y-4' : 'bg-white rounded-xl shadow-2xl w-full max-w-md overflow-hidden animate-fade-in-up flex flex-col max-h-[90vh]'}>
+        {!embedded && <div className="bg-indigo-600 p-4 flex justify-between items-center flex-shrink-0">
           <h3 className="text-white font-bold flex items-center gap-2">
             <List className="w-5 h-5" /> 獎勵項目設定
           </h3>
           <button onClick={onClose} className="text-white/80 hover:text-white"><X className="w-5 h-5" /></button>
-        </div>
+        </div>}
 
-        <div className="p-4 bg-slate-50 border-b border-slate-200 flex-shrink-0 space-y-3">
+        <div className={embedded ? 'space-y-3' : 'p-4 bg-slate-50 border-b border-slate-200 flex-shrink-0 space-y-3'}>
           <div>
             <p className="text-xs font-bold text-slate-500 uppercase mb-2">預設項目（個人與小組共用）</p>
             <div className="grid grid-cols-2 gap-2">
@@ -3029,7 +3037,7 @@ function ManagePresetsModal({ onClose, presets, teacherId }) {
           </form>
         </div>
 
-        <div className="overflow-y-auto p-4 space-y-2 flex-1">
+        <div className={embedded ? 'space-y-2' : 'overflow-y-auto p-4 space-y-2 flex-1'}>
           {presets.filter(preset => !preset.presetKey).length === 0 ? (
             <div className="text-center text-slate-500 py-8 text-sm flex flex-col items-center">
               <p className="mb-1 font-medium">尚未設定任何自訂項目</p>
@@ -3056,8 +3064,8 @@ function ManagePresetsModal({ onClose, presets, teacherId }) {
   );
 }
 
-// --- 系統設定視窗 (一般 / 班級管理 / 備份與匯入 / 安全) ---
-function SettingsModal({ onClose, classId, teacherUid, currentEmail, currentBackupUrl, classes = [], selectedClassId, selectedClassName, students = [], onUpdateStudent, onDeleteStudent, onBatchImport, isPrimaryAdmin = false, honorFontScale = 1, onHonorFontScaleChange, drawCardTeacherId }) {
+// --- 系統設定視窗 (一般 / 班級管理 / 獎勵設定 / 備份與匯入 / 安全) ---
+function SettingsModal({ onClose, classId, teacherUid, currentEmail, currentBackupUrl, classes = [], selectedClassId, selectedClassName, students = [], onUpdateStudent, onDeleteStudent, onBatchImport, isPrimaryAdmin = false, honorFontScale = 1, onHonorFontScaleChange, studentFontScale = 1, onStudentFontScaleChange, drawCardTeacherId, presets = [], presetTeacherId }) {
   const { notify, askConfirm, reportQuotaError } = useUI();
   const [activeTab, setActiveTab] = useState('general'); 
   const [email, setEmail] = useState(currentEmail || '');
@@ -3065,6 +3073,7 @@ function SettingsModal({ onClose, classId, teacherUid, currentEmail, currentBack
   const [editingClassId, setEditingClassId] = useState(null);
   const [editingClassName, setEditingClassName] = useState('');
   const [editingClassCode, setEditingClassCode] = useState('');
+  const [editingTotalGroups, setEditingTotalGroups] = useState('6');
   const [editingGroupPointDivisor, setEditingGroupPointDivisor] = useState('1');
   const [oldPassword, setOldPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
@@ -3079,6 +3088,10 @@ function SettingsModal({ onClose, classId, teacherUid, currentEmail, currentBack
   const [savingStudent, setSavingStudent] = useState(false);
   const [drawCards, setDrawCards] = useState(() => withCardImages(DRAW_CARD_DEFAULTS));
   const [drawCardsLoading, setDrawCardsLoading] = useState(true);
+  const [githubCardImages, setGithubCardImages] = useState(CARD_IMAGE_OPTIONS);
+  const [githubImageFile, setGithubImageFile] = useState('');
+  const [githubImageName, setGithubImageName] = useState('');
+  const [savingGithubImages, setSavingGithubImages] = useState(false);
 
   useEffect(() => {
     if (!isPrimaryAdmin) { setTeacherRequests([]); return undefined; }
@@ -3105,6 +3118,16 @@ function SettingsModal({ onClose, classId, teacherUid, currentEmail, currentBack
       setDrawCardsLoading(false);
     }, error => { console.error('讀取抽獎卡設定失敗', error); setDrawCardsLoading(false); });
   }, [selectedClassId]);
+
+  useEffect(() => {
+    const imageLibraryRef = doc(db, 'artifacts', appId, 'public', 'data', 'card_image_library', 'github');
+    return onSnapshot(imageLibraryRef, snapshot => {
+      const savedImages = Array.isArray(snapshot.data()?.images) ? snapshot.data().images : [];
+      const validCustomImages = savedImages.filter(image => image && CARD_IMAGE_FILE_PATTERN.test(image.file || '')).map(image => ({ id: image.id || image.file, file: image.file, name: image.name || image.file }));
+      const knownFiles = new Set(CARD_IMAGE_OPTIONS.map(image => image.file));
+      setGithubCardImages([...CARD_IMAGE_OPTIONS, ...validCustomImages.filter(image => !knownFiles.has(image.file))]);
+    }, error => console.warn('讀取 GitHub 獎卡圖片清單失敗，改用內建圖片。', error));
+  }, []);
 
   const handleUpdateGeneral = async (e) => {
     e.preventDefault();
@@ -3160,9 +3183,10 @@ function SettingsModal({ onClose, classId, teacherUid, currentEmail, currentBack
   const handleUpdateClassInfo = async (id) => {
     const name = editingClassName.trim();
     const nextCode = editingClassCode.trim().toUpperCase();
+    const totalGroups = Number(editingTotalGroups);
     const groupPointDivisor = Number(editingGroupPointDivisor);
-    if (!name || !/^[A-Z0-9_-]{4,32}$/.test(nextCode) || !Number.isFinite(groupPointDivisor) || groupPointDivisor <= 0 || groupPointDivisor > 100) {
-      notify('請填寫名稱、4–32 位合法班級代碼，N 須介於 0 到 100', 'error'); return;
+    if (!name || !/^[A-Z0-9_-]{4,32}$/.test(nextCode) || !Number.isInteger(totalGroups) || totalGroups < 1 || totalGroups > 20 || !Number.isFinite(groupPointDivisor) || groupPointDivisor <= 0 || groupPointDivisor > 100) {
+      notify('請填寫名稱、4–32 位合法學生查詢代碼、1–20 組與有效 N 值', 'error'); return;
     }
     try {
       const classRef = doc(db, 'artifacts', appId, 'public', 'data', 'classes', id);
@@ -3180,7 +3204,7 @@ function SettingsModal({ onClose, classId, teacherUid, currentEmail, currentBack
             tx.delete(oldRef);
           }
         }
-        tx.update(classRef, { name, classCode: nextCode, groupPointDivisor });
+        tx.update(classRef, { name, classCode: nextCode, totalGroups, groupPointDivisor });
       });
       setEditingClassId(null);
       notify('班級資訊已更新');
@@ -3266,13 +3290,35 @@ function SettingsModal({ onClose, classId, teacherUid, currentEmail, currentBack
     setDrawCards(current => current.map(card => card.id === cardId ? { ...card, [field]: field === 'weight' ? Math.max(0, Number(value) || 0) : value } : card));
   };
 
+  const selectGithubCardImage = (cardId, imageFile) => {
+    setDrawCards(current => current.map(card => card.id === cardId ? { ...card, imageFile } : card));
+  };
+
   const addDrawCard = () => {
     const id = `custom_${Date.now()}`;
-    setDrawCards(current => [...current, { id, name: '新獎卡', desc: '請填寫獎勵內容。', weight: 1, borderColor: '#BCE2F7', imageKey: 'class_applause', enabled: true }]);
+    setDrawCards(current => [...current, { id, name: '新獎卡', desc: '請填寫獎勵內容。', weight: 1, borderColor: '#BCE2F7', imageFile: 'class_applause.jpg', enabled: true }]);
   };
 
   const removeDrawCard = (cardId) => {
     setDrawCards(current => current.filter(card => card.id !== cardId));
+  };
+
+  const addGithubCardImage = () => {
+    const file = githubImageFile.trim();
+    if (!CARD_IMAGE_FILE_PATTERN.test(file)) { notify('檔名限英文、數字、.、_、-，副檔名為 JPG、PNG 或 WebP。', 'error'); return; }
+    if (githubCardImages.some(image => image.file.toLowerCase() === file.toLowerCase())) { notify('此圖片已在選單中。', 'error'); return; }
+    setGithubCardImages(current => [...current, { id: file, file, name: githubImageName.trim() || file }]);
+    setGithubImageFile(''); setGithubImageName('');
+  };
+
+  const saveGithubCardImages = async () => {
+    setSavingGithubImages(true);
+    try {
+      const customImages = githubCardImages.filter(image => !CARD_IMAGE_OPTIONS.some(defaultImage => defaultImage.file === image.file));
+      await setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'card_image_library', 'github'), { images: customImages, updatedAt: serverTimestamp() });
+      notify('GitHub 圖片檔名清單已儲存，所有教師的抽獎卡選單會同步更新。');
+    } catch (error) { console.error('儲存 GitHub 圖片清單失敗', error); notify('儲存失敗，請確認 Firestore Rules 已發布。', 'error'); }
+    finally { setSavingGithubImages(false); }
   };
 
   const saveDrawCards = async () => {
@@ -3333,8 +3379,8 @@ function SettingsModal({ onClose, classId, teacherUid, currentEmail, currentBack
   };
 
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50 backdrop-blur-sm">
-      <div className="forest-settings-modal bg-white rounded-xl shadow-2xl w-full max-w-sm overflow-hidden animate-fade-in-up">
+    <div className="forest-modal-overlay fixed inset-0 flex items-center justify-center p-4 z-[110] backdrop-blur-sm">
+      <div className="forest-modal forest-settings-modal bg-white rounded-xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-hidden animate-fade-in-up flex flex-col">
         <div className="forest-settings-titlebar bg-slate-800 p-4 flex justify-between items-center">
           <h3 className="text-white font-bold flex items-center gap-2">
             <Settings className="w-5 h-5" /> 系統設定
@@ -3346,6 +3392,7 @@ function SettingsModal({ onClose, classId, teacherUid, currentEmail, currentBack
         <div className="forest-settings-tabs flex border-b border-slate-200 overflow-x-auto no-scrollbar">
           <button onClick={() => setActiveTab('general')} className={`flex-shrink-0 px-4 py-3 text-sm font-medium transition ${activeTab === 'general' ? 'text-indigo-600 border-b-2 border-indigo-600 bg-slate-50' : 'text-slate-500 hover:text-slate-700'}`}>一般</button>
           <button onClick={() => setActiveTab('classes')} className={`flex-shrink-0 px-4 py-3 text-sm font-medium transition ${activeTab === 'classes' ? 'text-indigo-600 border-b-2 border-indigo-600 bg-slate-50' : 'text-slate-500 hover:text-slate-700'}`}>班級管理</button>
+          <button onClick={() => setActiveTab('rewards')} className={`flex-shrink-0 px-4 py-3 text-sm font-medium transition ${activeTab === 'rewards' ? 'text-indigo-600 border-b-2 border-indigo-600 bg-slate-50' : 'text-slate-500 hover:text-slate-700'}`}>獎勵設定</button>
           <button onClick={() => setActiveTab('backup')} className={`flex-shrink-0 px-4 py-3 text-sm font-medium transition ${activeTab === 'backup' ? 'text-indigo-600 border-b-2 border-indigo-600 bg-slate-50' : 'text-slate-500 hover:text-slate-700'}`}>備份</button>
           <button onClick={() => setActiveTab('drawCards')} className={`flex-shrink-0 px-4 py-3 text-sm font-medium transition ${activeTab === 'drawCards' ? 'text-indigo-600 border-b-2 border-indigo-600 bg-slate-50' : 'text-slate-500 hover:text-slate-700'}`}>抽獎卡</button>
           <button onClick={() => setActiveTab('roster')} className={`flex-shrink-0 px-4 py-3 text-sm font-medium transition ${activeTab === 'roster' ? 'text-indigo-600 border-b-2 border-indigo-600 bg-slate-50' : 'text-slate-500 hover:text-slate-700'}`}>刪除名單</button>
@@ -3353,7 +3400,7 @@ function SettingsModal({ onClose, classId, teacherUid, currentEmail, currentBack
           {isPrimaryAdmin && <button onClick={() => setActiveTab('teacherRequests')} className={`flex-shrink-0 px-4 py-3 text-sm font-medium transition ${activeTab === 'teacherRequests' ? 'text-indigo-600 border-b-2 border-indigo-600 bg-slate-50' : 'text-slate-500 hover:text-slate-700'}`}>教師審核{teacherRequests.length ? ` (${teacherRequests.length})` : ''}</button>}
         </div>
 
-        <div className="forest-settings-content p-6">
+        <div className="forest-settings-content p-6 overflow-y-auto">
           {/* 1. 一般設定 */}
           {activeTab === 'general' && (
             <form onSubmit={handleUpdateGeneral} className="space-y-5">
@@ -3373,13 +3420,22 @@ function SettingsModal({ onClose, classId, teacherUid, currentEmail, currentBack
                   <button type="button" onClick={() => onHonorFontScaleChange?.(0.1)} disabled={honorFontScale >= 1.6} className="w-10 h-10 rounded-lg border border-slate-300 text-xl font-bold text-slate-700 hover:bg-slate-100 disabled:opacity-40" aria-label="放大榮譽榜字體">+</button>
                 </div>
               </div>
+              <div className="border-t border-slate-200 pt-4">
+                <label className="block text-sm font-medium text-slate-700 mb-1">學生卡字體大小</label>
+                <p className="text-xs text-slate-500 mb-3">調整學生卡的座號、姓名與分數；此顯示設定只保存在目前瀏覽器。</p>
+                <div className="flex items-center justify-between gap-3">
+                  <button type="button" onClick={() => onStudentFontScaleChange?.(-0.1)} disabled={studentFontScale <= 0.8} className="w-10 h-10 rounded-lg border border-slate-300 text-xl font-bold text-slate-700 hover:bg-slate-100 disabled:opacity-40" aria-label="縮小學生卡字體">−</button>
+                  <div className="flex-1 text-center"><span className="font-bold text-indigo-700 text-lg">{Math.round(studentFontScale * 100)}%</span><p className="text-xs text-slate-400">可調整 80%–160%</p></div>
+                  <button type="button" onClick={() => onStudentFontScaleChange?.(0.1)} disabled={studentFontScale >= 1.6} className="w-10 h-10 rounded-lg border border-slate-300 text-xl font-bold text-slate-700 hover:bg-slate-100 disabled:opacity-40" aria-label="放大學生卡字體">+</button>
+                </div>
+              </div>
               <div className="pt-4">
                 <button type="submit" disabled={loading} className="w-full bg-indigo-600 text-white font-bold py-2 rounded-lg hover:bg-indigo-700 transition shadow-md">{loading ? '儲存中...' : '儲存設定'}</button>
               </div>
             </form>
           )}
 
-          {/* 2. 班級管理 (修改名稱與自訂班級代碼) */}
+          {/* 2. 班級管理（班級名稱、學生查詢代碼與小組換算 N） */}
           {activeTab === 'classes' && (
             <div className="space-y-4 max-h-[320px] overflow-y-auto">
               {classes.length === 0 ? (
@@ -3391,8 +3447,10 @@ function SettingsModal({ onClose, classId, teacherUid, currentEmail, currentBack
                       <div className="flex flex-col gap-2">
                         <label className="text-xs text-slate-500">班級名稱</label>
                         <input value={editingClassName} onChange={(e) => setEditingClassName(e.target.value)} className="px-2 py-1 text-sm border rounded bg-white" placeholder="班級名稱"/>
-                        <label className="text-xs text-slate-500">班級代碼 (學生查分用)</label>
-                        <input value={editingClassCode} onChange={(e) => setEditingClassCode(e.target.value.toUpperCase())} className="px-2 py-1 text-sm border rounded font-mono bg-white uppercase" placeholder="班級代碼"/>
+                        <div className="grid grid-cols-2 gap-2">
+                          <label className="text-xs text-slate-500">學生查詢代碼<input value={editingClassCode} onChange={(e) => setEditingClassCode(e.target.value.toUpperCase())} className="mt-1 w-full px-2 py-1 text-sm border rounded font-mono bg-white uppercase" placeholder="學生查詢代碼"/></label>
+                          <label className="text-xs text-slate-500">分組數量<input type="number" min="1" max="20" step="1" value={editingTotalGroups} onChange={(e) => setEditingTotalGroups(e.target.value)} className="mt-1 w-full px-2 py-1 text-sm border rounded bg-white" placeholder="預設 6"/></label>
+                        </div>
                         <label className="text-xs text-slate-500">小組積分換算 N（小組分數 ÷ N）</label>
                         <input type="number" min="0.01" max="100" step="0.01" value={editingGroupPointDivisor} onChange={(e) => setEditingGroupPointDivisor(e.target.value)} className="px-2 py-1 text-sm border rounded bg-white" />
                         <div className="flex justify-end gap-2 mt-1">
@@ -3404,17 +3462,22 @@ function SettingsModal({ onClose, classId, teacherUid, currentEmail, currentBack
                       <div className="flex justify-between items-start">
                         <div>
                           <span className="font-bold text-slate-800 block">{c.name}</span>
-                          <div className="flex items-center gap-2 mt-1.5">
-                            <span className="text-xs text-slate-400">代碼:</span>
+                          <div className="flex flex-wrap items-center gap-x-2 gap-y-1 mt-1.5">
+                            <span className="text-xs text-slate-400">學生查詢代碼:</span>
                             <span className="text-xs bg-white border border-slate-200 text-indigo-700 font-bold px-2 py-0.5 rounded font-mono">
                               {c.classCode || c.id}
                             </span>
-                            <button onClick={() => copyText(c.classCode || c.id)} className="text-slate-400 hover:text-indigo-600" title="複製班級代碼">
+                            <button onClick={() => copyText(c.classCode || c.id)} className="text-slate-400 hover:text-indigo-600" title="複製學生查詢代碼">
                               <Copy className="w-3.5 h-3.5"/>
                             </button>
+                            <span className="text-xs text-slate-300">｜</span>
+                            <span className="text-xs text-slate-400">分組數量:</span>
+                            <span className="text-xs bg-white border border-slate-200 text-emerald-700 font-bold px-2 py-0.5 rounded">
+                              {c.totalGroups || 6} 組
+                            </span>
                           </div>
                         </div>
-                        <div className="flex gap-1"><button onClick={() => { setEditingClassId(c.id); setEditingClassName(c.name); setEditingClassCode(c.classCode || c.id); setEditingGroupPointDivisor(String(c.groupPointDivisor || 1)); }} className="text-slate-400 hover:text-indigo-600 p-1" title="編輯班級名稱、代碼與 N"><Pencil className="w-4 h-4" /></button><button onClick={() => handleDeleteClass(c)} className="text-slate-400 hover:text-red-600 p-1" title="刪除班級資料"><Trash2 className="w-4 h-4" /></button></div>
+                        <div className="flex gap-1"><button onClick={() => { setEditingClassId(c.id); setEditingClassName(c.name); setEditingClassCode(c.classCode || c.id); setEditingTotalGroups(String(c.totalGroups || 6)); setEditingGroupPointDivisor(String(c.groupPointDivisor || 1)); }} className="flex items-center gap-1 text-xs text-slate-500 hover:text-indigo-600 px-2 py-1 border border-slate-200 rounded bg-white" title="編輯班級名稱、學生查詢代碼、分組數量與 N"><Pencil className="w-3.5 h-3.5" />編輯</button><button onClick={() => handleDeleteClass(c)} className="text-slate-400 hover:text-red-600 p-1" title="刪除班級資料"><Trash2 className="w-4 h-4" /></button></div>
                       </div>
                     )}
                   </div>
@@ -3422,8 +3485,19 @@ function SettingsModal({ onClose, classId, teacherUid, currentEmail, currentBack
               )}
             </div>
           )}
+
+          {/* 3. 獎勵設定：共同加扣分與學生兌獎項目 */}
+          {activeTab === 'rewards' && (
+            <div className="space-y-4">
+              <div className="rounded-lg border border-emerald-100 bg-emerald-50/60 p-3">
+                <h4 className="flex items-center gap-2 text-sm font-bold text-slate-800"><List className="h-4 w-4 text-emerald-700" /> 共同加扣分項目</h4>
+                <p className="mt-1 text-xs text-slate-600">這些項目會出現在學生加扣分浮動視窗與小組操作中；兌獎會扣除點數，但不標示為扣分。</p>
+              </div>
+              <ManagePresetsModal embedded presets={presets} teacherId={presetTeacherId} />
+            </div>
+          )}
           
-          {/* 3. 雲端備份與批次文字匯入還原 */}
+          {/* 4. 雲端備份與批次文字匯入還原 */}
           {activeTab === 'backup' && (
             <div className="space-y-5">
               <form onSubmit={handleUpdateBackup} className="space-y-3">
@@ -3459,8 +3533,15 @@ function SettingsModal({ onClose, classId, teacherUid, currentEmail, currentBack
             <div className="space-y-4 max-h-[420px] overflow-y-auto pr-1">
               <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs text-amber-900">
                 <p className="font-bold">設定抽獎卡與出現機率</p>
-                <p className="mt-1 leading-relaxed">正在設定：{selectedClassName || '未選擇班級'}。權重越大，抽中的機率越高；設為 0 或取消啟用即不會出現。學生獎勵卡說明頁會讀取同一份設定。</p>
+                <p className="mt-1 leading-relaxed">正在設定：{selectedClassName || '未選擇班級'}。權重越大，抽中的機率越高；設為 0 或取消啟用即不會出現。圖片採 GitHub 專案內建檔案，學生獎勵卡說明頁會讀取同一份設定。</p>
               </div>
+              {isPrimaryAdmin && <div className="rounded-lg border border-emerald-200 bg-emerald-50/60 p-3 text-xs text-emerald-950 space-y-2">
+                <p className="font-bold">GitHub 自訂獎卡圖片清單（主要管理者）</p>
+                <p>先在 GitHub 的 <code>public/reward-cards/</code> 上傳圖片，再把完整檔名加入此處，例如 <code>reading_reward.jpg</code>。</p>
+                <div className="grid grid-cols-1 sm:grid-cols-[1fr_1fr_auto] gap-2"><input value={githubImageFile} onChange={event => setGithubImageFile(event.target.value)} placeholder="圖片檔名，例如 reading_reward.jpg" className="px-2 py-1.5 border rounded bg-white" /><input value={githubImageName} onChange={event => setGithubImageName(event.target.value)} placeholder="選單顯示名稱（選填）" className="px-2 py-1.5 border rounded bg-white" /><button type="button" onClick={addGithubCardImage} className="rounded bg-white border border-emerald-300 px-3 py-1.5 font-bold text-emerald-800">加入清單</button></div>
+                <div className="flex flex-wrap gap-1">{githubCardImages.map(image => <span key={image.file} className="rounded bg-white border border-emerald-100 px-2 py-1 text-[11px]">{image.name}</span>)}</div>
+                <button type="button" onClick={saveGithubCardImages} disabled={savingGithubImages} className="rounded bg-emerald-700 px-3 py-1.5 font-bold text-white disabled:opacity-50">{savingGithubImages ? '儲存中…' : '儲存圖片清單'}</button>
+              </div>}
               {drawCardsLoading && <p className="text-center text-xs text-slate-400 py-3">讀取獎卡設定中…</p>}
               <p className="text-xs text-slate-500">目前啟用的總權重：<span className="font-bold text-indigo-700">{drawCards.filter(card => card.enabled !== false).reduce((sum, card) => sum + (Number(card.weight) || 0), 0)}</span></p>
               {drawCards.map((card, index) => (
@@ -3475,8 +3556,8 @@ function SettingsModal({ onClose, classId, teacherUid, currentEmail, currentBack
                     <label className="text-xs text-slate-500">權重<input type="number" min="0" step="1" value={card.weight ?? 0} onChange={(event) => updateDrawCard(card.id, 'weight', event.target.value)} className="mt-1 w-full px-2 py-1.5 text-sm border rounded bg-white" aria-label="出現權重" /></label>
                   </div>
                   <textarea value={card.desc || ''} onChange={(event) => updateDrawCard(card.id, 'desc', event.target.value)} className="w-full h-16 px-2 py-1.5 text-xs border rounded bg-white resize-none" placeholder="獎勵內容／說明" aria-label="獎勵內容" />
-                  <label className="block text-xs text-slate-500">正式卡圖<select value={card.imageKey || card.id || 'class_applause'} onChange={(event) => updateDrawCard(card.id, 'imageKey', event.target.value)} className="mt-1 w-full px-2 py-1.5 text-sm border rounded bg-white"><option value="">使用預設圖案</option>{CARD_IMAGE_OPTIONS.map(option => <option key={option.id} value={option.id}>{option.name}</option>)}</select></label>
-                  <img src={cardImageUrl(card.imageKey || card.id)} alt={`${card.name || '獎卡'} 預覽`} className="h-24 w-full rounded border border-slate-200 object-cover bg-white" loading="lazy" />
+                  <label className="block text-xs text-slate-500">正式卡圖<select value={card.imageFile || `${card.imageKey || card.id || 'class_applause'}.jpg`} onChange={(event) => selectGithubCardImage(card.id, event.target.value)} className="mt-1 w-full px-2 py-1.5 text-sm border rounded bg-white">{githubCardImages.map(option => <option key={option.file} value={option.file}>{option.name}</option>)}</select></label>
+                  <img src={cardImageUrl(card)} alt={`${card.name || '獎卡'} 預覽`} className="h-24 w-full rounded border border-slate-200 object-cover bg-white" loading="lazy" />
                 </div>
               ))}
               <div className="grid grid-cols-2 gap-2 pt-1">
@@ -3676,8 +3757,8 @@ function SharedScorePanel({ student, presets, onUpdatePoints, onClear }) {
   };
 
   return (
-    <section className="mb-5" aria-label="共用加扣分面板">
-      <div className="grid grid-cols-3 sm:grid-cols-9 gap-1.5">
+    <section className="forest-shared-panel mb-5" aria-label="共用加扣分面板">
+      <div className="forest-score-grid grid grid-cols-3 sm:grid-cols-9 gap-1.5">
         <div className="h-20 rounded-lg border border-indigo-200 bg-indigo-50 p-1.5 text-center flex flex-col items-center justify-center">
           <p className="text-[11px] text-indigo-500">共同加扣分</p>
           <p className="font-bold text-indigo-800 text-sm truncate w-full">{student ? `${student.studentNumber || '未編號'} ${student.name}` : '請先點選學生'}</p>
@@ -3695,19 +3776,41 @@ function SharedScorePanel({ student, presets, onUpdatePoints, onClear }) {
   );
 }
 
+function SharedScoreModal({ student, presets, onUpdatePoints, onClose }) {
+  return createPortal(
+    <div className="fixed inset-0 z-[120] flex items-center justify-center bg-black/45 p-4 backdrop-blur-sm" role="dialog" aria-modal="true" aria-label={`${student.name} 的加扣分`}>
+      <div className="forest-score-modal w-full max-w-3xl overflow-hidden rounded-2xl bg-[#fffef9] shadow-2xl animate-fade-in-up">
+        <div className="forest-score-modal-titlebar flex items-center justify-between px-5 py-4">
+          <div className="min-w-0">
+            <p className="text-xs font-bold tracking-[.14em] text-white/70">學生積分操作</p>
+            <h3 className="truncate text-lg font-bold text-white">{student.studentNumber || '未編號'}　{student.name}</h3>
+          </div>
+          <button type="button" onClick={onClose} className="rounded-full p-2 text-white/85 hover:bg-white/15 hover:text-white" aria-label="關閉加扣分視窗"><X className="h-5 w-5" /></button>
+        </div>
+        <div className="p-4 sm:p-5">
+          <SharedScorePanel student={student} presets={presets} onUpdatePoints={onUpdatePoints} onClear={onClose} />
+          <p className="mt-1 text-center text-xs text-slate-500">加扣分項目可在「系統設定」中調整；套用後會立即同步積分與紀錄。</p>
+        </div>
+      </div>
+    </div>, document.body
+  );
+}
+
 type CompactStudentCardProps = {
   student: any;
   selected: boolean;
   onSelect: (student: any) => void;
   onShowHistory: (student: any) => void;
+  fontScale: number;
 };
 
-const CompactStudentCard = React.memo(function CompactStudentCard({ student, selected, onSelect, onShowHistory }: CompactStudentCardProps) {
+const CompactStudentCard = React.memo(function CompactStudentCard({ student, selected, onSelect, onShowHistory, fontScale }: CompactStudentCardProps) {
   const score = student.totalPoints ?? student.points;
   const activate = () => onSelect(student);
-  return <div role="button" tabIndex={0} onClick={activate} onKeyDown={event => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); activate(); } }} className={`forest-student-card min-h-24 rounded-xl border p-2 flex flex-col justify-between cursor-pointer transition shadow-sm ${selected ? 'border-indigo-500 ring-2 ring-indigo-200 bg-indigo-50' : 'border-slate-200 bg-white hover:border-indigo-300 hover:shadow-md'}`} title="點選後使用上方共同加扣分面板">
-    <div className="flex items-center justify-center gap-1 text-indigo-700 font-extrabold text-center"><span className="text-base shrink-0">{student.studentNumber || '#'}</span><button type="button" onClick={event => { event.stopPropagation(); onShowHistory(student); }} className="max-w-[72%] truncate text-center text-base hover:underline focus:outline-none" title="查看加扣分紀錄">{student.name}</button></div>
-    <div className={`text-center text-2xl sm:text-3xl font-black leading-none ${score >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>{formatPoints(score)}</div>
+  return <div role="button" tabIndex={0} onClick={activate} onKeyDown={event => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); activate(); } }} className={`forest-student-card min-h-24 rounded-xl border p-2 cursor-pointer transition shadow-sm ${selected ? 'border-indigo-500 ring-2 ring-indigo-200 bg-indigo-50' : 'border-slate-200 bg-white hover:border-indigo-300 hover:shadow-md'}`} title="點選後開啟加扣分視窗">
+    <span className="forest-student-seat" style={{ fontSize: `${0.75 * fontScale}rem` }}>{student.studentNumber || '#'}</span>
+    <button type="button" onClick={event => { event.stopPropagation(); onShowHistory(student); }} className="forest-student-name truncate hover:underline focus:outline-none" style={{ fontSize: `${1.1 * fontScale}rem` }} title="查看加扣分紀錄">{student.name}</button>
+    <div className={`forest-student-score ${score < 0 ? 'forest-student-score-negative' : ''}`} style={{ fontSize: `${1.1 * fontScale}rem` }}>{formatStudentCardPoints(score)}</div>
   </div>;
 });
 

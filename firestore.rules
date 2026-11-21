@@ -250,6 +250,17 @@ service cloud.firestore {
           request.resource.data.cards.size() <= 40;
         allow delete: if ownsClass(classId);
       }
+
+      // GitHub 內建獎卡圖片清單：只有主要管理者可登錄上傳至 repo 的檔名；
+      // 教師端只讀取清單，並在自己的班級抽獎卡中選用。
+      match /card_image_library/{libraryId} {
+        allow get: if isTeacher();
+        allow list: if false;
+        allow create, update: if isPrimaryAdmin() && libraryId == 'github' &&
+          request.resource.data.keys().hasOnly(['images','updatedAt']) &&
+          request.resource.data.images is list && request.resource.data.images.size() <= 100;
+        allow delete: if isPrimaryAdmin() && libraryId == 'github';
+      }
     }
     // 預設拒絕所有其他路徑；如果同個 Firebase 專案另有其他系統，勿直接覆蓋其現有規則。
     match /{document=**} { allow read, write: if false; }

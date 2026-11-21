@@ -212,6 +212,14 @@ Firestore Emulator 需要本機已安裝並可從 `PATH` 呼叫的 Java（通常
 4. `git add`、`git commit`、`git push origin main`。GitHub Actions 會自動更新 Pages。
 5. 到 Actions 確認成功，再用正式網址測試教師登入、重新整理保持登入、學生查分和各種加扣分。任何 Firebase Rules 或資料遷移都要另行核准並手動執行。
 
+### 自訂獎卡圖片（GitHub 內建圖片）
+
+獎卡圖片隨網站一起保存在 GitHub 專案的 `public/reward-cards/`，不使用 Firebase Storage，教師也不能從網站直接上傳。只有有 GitHub repo 寫入權限的主要管理者，才可在 GitHub 網頁新增／替換圖片；每次提交都會留下 Git 歷程，GitHub Actions 完成後 Pages 才會更新。
+
+新增圖片後，主要管理者以 `wantery@gmail.com` 登入平台，開啟「系統設定 → 抽獎卡」，在「GitHub 自訂獎卡圖片清單」輸入完整檔名（例如 `reading_reward.jpg`）及選單名稱並儲存。所有教師的「正式卡圖」選單會同步出現該圖片。圖片檔名僅允許英文、數字、`.`、`_`、`-`，副檔名限 JPG、PNG、WebP；建議單張壓縮在 2 MB 內，以維持 Pages 載入速度。
+
+此清單寫入 Firestore，需要手動發布本專案最新的 `firestore.rules` 後，主要管理者才可儲存；GitHub Pages 不會自動發布 Firebase Rules。
+
 ## 十、Google 試算表加扣分紀錄（每班一個分頁）
 
 網站已支援把「學生加扣分」和「小組加扣分」寫入指定的 Google 試算表；每筆學生變動各寫一列。新建班級時，Apps Script 會在試算表建立該班專用分頁。每個班級分頁左側保存班級資料和最新學生名單（座號、姓名、目前積分、小組、最後加扣分原因／時間），右側保存逐筆加扣分紀錄。

@@ -46,6 +46,66 @@ body {
   position: relative;
 }
 
+.forest-student-login,
+.forest-student-guide,
+.forest-student-dashboard {
+  background:
+    radial-gradient(ellipse at 0 0, rgba(154,184,137,.22), transparent 31rem),
+    radial-gradient(ellipse at 100% 100%, rgba(154,184,137,.15), transparent 28rem),
+    var(--forest-paper) !important;
+}
+.forest-student-login-card,
+.forest-student-guide header,
+.forest-student-table {
+  border: 1px solid var(--forest-line) !important;
+  background: rgba(255,255,252,.94) !important;
+  box-shadow: var(--forest-shadow) !important;
+}
+.forest-student-login-card::before {
+  content: '🌱';
+  display: block;
+  width: 4rem;
+  height: 4rem;
+  margin: .25rem auto 1rem;
+  border-radius: 999px;
+  background: var(--forest-sage-pale);
+  color: var(--forest-moss);
+  font-size: 2rem;
+  line-height: 4rem;
+  text-align: center;
+}
+.forest-student-login-card [class*="bg-emerald-600"] {
+  background: var(--forest-moss) !important;
+  box-shadow: 0 4px 12px rgba(35,71,45,.18) !important;
+}
+.forest-student-login-card [class*="bg-emerald-100"] { background: var(--forest-sage-pale) !important; }
+.forest-student-login-card [class*="text-emerald"] { color: var(--forest-moss) !important; }
+.forest-student-login-card [class*="border-emerald"] { border-color: var(--forest-sage) !important; }
+.forest-student-content { max-width: 72rem; }
+.forest-student-dashboard .forest-class-header {
+  background:
+    radial-gradient(circle at 88% 0, rgba(154,184,137,.19), transparent 13rem),
+    rgba(255,255,252,.94) !important;
+}
+.forest-student-honor { padding: 1rem; }
+.forest-student-honor .forest-honor-heading { color: var(--forest-moss-deep) !important; }
+.forest-student-table > div:first-child {
+  background: #f3f7ef !important;
+  border-color: var(--forest-line) !important;
+}
+.forest-student-table thead { background: #eef4e9 !important; }
+.forest-student-table tbody tr:hover { background: #f8faf5 !important; }
+.forest-student-guide header {
+  background:
+    radial-gradient(circle at 88% 0, rgba(154,184,137,.19), transparent 14rem),
+    rgba(255,255,252,.94) !important;
+}
+.forest-student-guide article {
+  border-color: var(--forest-line) !important;
+  background: rgba(255,255,252,.94) !important;
+  box-shadow: var(--forest-shadow) !important;
+}
+
 .forest-dashboard::after,
 .forest-student-board::after {
   content: '❧';
@@ -63,6 +123,11 @@ body {
 
 .forest-dashboard > *,
 .forest-student-board > * { position: relative; z-index: 1; }
+.forest-dashboard > [class*="fixed"],
+.forest-student-board > [class*="fixed"] {
+  position: fixed !important;
+  z-index: 50;
+}
 
 .forest-topbar,
 .forest-class-header,
@@ -78,8 +143,11 @@ body {
 .forest-topbar {
   border: 1px solid var(--forest-line) !important;
   border-radius: 18px !important;
-  background: rgba(255,255,252,.93) !important;
+  background:
+    radial-gradient(circle at 8% 0%, rgba(154,184,137,.18), transparent 11rem),
+    rgba(255,255,252,.93) !important;
   backdrop-filter: blur(8px);
+  scrollbar-width: thin;
 }
 
 .forest-brand-mark,
@@ -88,23 +156,35 @@ body {
   box-shadow: 0 4px 12px rgba(35,71,45,.18) !important;
 }
 
-.forest-brand-copy { min-width: 126px; }
+.forest-brand-copy { min-width: 190px; position: relative; }
 .forest-brand-title {
   margin: 0;
   color: var(--forest-moss-deep);
   font-family: Georgia, 'Noto Serif TC', serif;
-  font-size: 1.05rem;
+  font-size: clamp(1.25rem, 2vw, 1.8rem);
   font-weight: 800;
   letter-spacing: .06em;
   line-height: 1.15;
 }
-.forest-brand-title::before { content: '⌇'; color: var(--forest-sage); margin-right: .2rem; }
+.forest-brand-title::before { content: '🌱'; font-size: .85em; margin-right: .35rem; }
+.forest-brand-copy::after {
+  content: '❧';
+  position: absolute;
+  right: -.8rem;
+  top: -.55rem;
+  color: var(--forest-sage);
+  font: 2.2rem/1 Georgia, serif;
+  transform: rotate(19deg);
+  opacity: .8;
+  pointer-events: none;
+}
 .forest-brand-subtitle {
   margin: .12rem 0 0;
   color: #758573;
   font-size: .66rem;
   letter-spacing: .12em;
 }
+.forest-class-select { max-width: 11.5rem; min-height: 2.35rem; }
 
 .forest-class-header {
   border: 1px solid var(--forest-line);
@@ -125,7 +205,8 @@ body {
   padding: .9rem;
   border: 1px solid var(--forest-line);
   border-radius: 18px;
-  background: rgba(255,255,252,.68);
+  background:
+    linear-gradient(180deg, rgba(255,255,252,.96), rgba(248,244,232,.93));
 }
 .forest-honor-heading {
   color: var(--forest-moss-deep) !important;
@@ -155,17 +236,16 @@ body {
 .forest-honor-card [class*="text-orange"] { color: var(--forest-moss) !important; }
 
 .forest-student-card {
+  position: relative;
+  display: grid;
+  grid-template-rows: 2rem auto 1fr;
   border-color: var(--forest-line) !important;
   border-radius: 15px !important;
   background: rgba(255,255,252,.94) !important;
   box-shadow: 0 3px 10px rgba(58,84,58,.06) !important;
 }
 .forest-student-card::before {
-  content: '⌇';
-  color: var(--forest-sage);
-  font-size: 1.35rem;
-  line-height: .5;
-  text-align: center;
+  display: none;
 }
 .forest-student-card[class*="ring-2"] {
   border-color: var(--forest-moss) !important;
@@ -174,6 +254,45 @@ body {
 }
 .forest-student-card [class*="text-indigo"],
 .forest-student-card [class*="text-emerald"] { color: var(--forest-moss) !important; }
+.forest-student-seat {
+  position: absolute;
+  top: .48rem;
+  left: .5rem;
+  display: inline-flex;
+  width: 1.75rem;
+  height: 1.75rem;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: 1px solid #c9dbc2;
+  border-radius: 999px;
+  background: var(--forest-sage-pale);
+  color: #35483b;
+  font-size: .75rem !important;
+  font-weight: 800;
+  line-height: 1;
+  text-align: center;
+}
+.forest-student-name {
+  grid-row: 2;
+  align-self: start;
+  display: block;
+  width: 100%;
+  padding: .12rem .35rem 0;
+  color: #35483b;
+  font-weight: 800;
+  line-height: 1.35;
+  text-align: center;
+}
+.forest-student-score {
+  grid-row: 3;
+  align-self: end;
+  color: #397144 !important;
+  font-weight: 800;
+  line-height: 1;
+  text-align: center;
+}
+.forest-student-score-negative { color: var(--forest-danger) !important; }
 
 /* Main actions become moss; destructive actions retain red. */
 .forest-app button[class*="bg-indigo-600"],
@@ -216,6 +335,41 @@ body {
 .forest-app textarea:focus,
 .forest-app select:focus { border-color: var(--forest-sage) !important; box-shadow: 0 0 0 2px rgba(154,184,137,.34) !important; }
 
+/* Teacher dialogs share one calm paper-card language and never enlarge the page. */
+.forest-modal-overlay {
+  background: rgba(29, 51, 35, .48) !important;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+.forest-modal {
+  max-height: calc(100dvh - 2rem) !important;
+  border: 1px solid var(--forest-line) !important;
+  border-radius: 18px !important;
+  background: #fffef9 !important;
+  box-shadow: 0 18px 45px rgba(30, 52, 35, .24) !important;
+}
+.forest-modal-titlebar {
+  background:
+    radial-gradient(circle at 14% 0%, rgba(174,206,149,.42), transparent 12rem),
+    linear-gradient(105deg, var(--forest-moss-deep), var(--forest-moss)) !important;
+}
+.forest-modal-titlebar button,
+.forest-settings-titlebar button {
+  border-radius: 999px;
+  padding: .35rem;
+}
+.forest-modal button[class*="bg-indigo-600"],
+.forest-modal button[class*="bg-pink-600"],
+.forest-modal button[class*="bg-emerald-600"] {
+  background: var(--forest-moss) !important;
+  color: #fff !important;
+}
+.forest-modal button[class*="bg-pink-600"]:hover,
+.forest-modal button[class*="bg-indigo-600"]:hover,
+.forest-modal button[class*="bg-emerald-600"]:hover {
+  background: var(--forest-moss-deep) !important;
+}
+
 .forest-settings-modal {
   max-width: 38rem !important;
   border: 1px solid var(--forest-line);
@@ -236,8 +390,204 @@ body {
 .forest-settings-content { background: #fffef9; }
 .forest-settings-content [class*="bg-slate-50"] { background-color: #f8faf5 !important; }
 
+/* Teacher dashboard: leaderboard aside + a calm, task-first central workspace. */
+.forest-workspace {
+  display: grid;
+  grid-template-columns: minmax(180px, 208px) minmax(0, 1fr);
+  align-items: start;
+  gap: 1.25rem;
+}
+.forest-honor-sidebar {
+  position: sticky;
+  top: 6.8rem;
+  align-self: start;
+  margin: 0;
+  padding: .75rem !important;
+  border-color: #d7c9a7 !important;
+  background:
+    linear-gradient(180deg, rgba(128,82,43,.96) 0, rgba(128,82,43,.96) 4.35rem, rgba(255,252,242,.97) 4.36rem, rgba(248,243,227,.96) 100%) !important;
+  box-shadow: 0 10px 24px rgba(87,62,38,.12) !important;
+}
+.forest-honor-sidebar .forest-honor-heading {
+  min-height: 3.5rem;
+  margin: -.1rem 0 .75rem !important;
+  color: #fff9e8 !important;
+  font-size: 1.35rem !important;
+  text-shadow: 0 1px 1px rgba(53,32,15,.35);
+}
+.forest-honor-sidebar .forest-honor-heading::before,
+.forest-honor-sidebar .forest-honor-heading::after { color: #e5c271; content: '❧'; font-size: 1.25rem; }
+.forest-honor-sidebar .forest-honor-card { border-color: #eadcc0 !important; }
+.forest-honor-list .forest-honor-card {
+  display: grid !important;
+  grid-template-columns: 2.2rem minmax(0, 1fr) auto;
+  align-items: center;
+  min-height: 3.5rem;
+  height: auto !important;
+  padding: .5rem .6rem !important;
+  text-align: left !important;
+}
+.forest-honor-list .forest-honor-card > div:nth-child(1) {
+  position: static !important;
+  grid-column: 1;
+  margin: 0 !important;
+  padding: .34rem .15rem !important;
+  border-radius: 999px !important;
+  text-align: center;
+  box-shadow: none !important;
+}
+.forest-honor-list .forest-honor-card > div:nth-child(2) {
+  grid-column: 2;
+  width: auto !important;
+  margin: 0 !important;
+  padding: 0 .35rem !important;
+  text-align: left !important;
+  color: var(--forest-ink) !important;
+  font-size: .98rem !important;
+  font-weight: 800 !important;
+}
+.forest-honor-list .forest-honor-card > div:nth-child(3) {
+  grid-column: 3;
+  color: #55745b !important;
+  font-size: .82rem !important;
+  font-weight: 700 !important;
+  white-space: nowrap;
+}
+.forest-main-workspace { min-width: 0; }
+.forest-content-heading {
+  border-bottom: 1px solid var(--forest-line);
+  padding: .15rem .1rem .75rem;
+}
+.forest-view-switcher {
+  gap: .2rem;
+  border: 1px solid var(--forest-line);
+  border-radius: 12px;
+  background: rgba(237,243,232,.72);
+}
+.forest-view-switcher button[class*="bg-white"] {
+  color: var(--forest-moss) !important;
+  background: #fffef9 !important;
+  box-shadow: 0 2px 6px rgba(35,71,45,.09) !important;
+}
+.forest-top-view-switcher {
+  gap: .15rem;
+  border: 1px solid var(--forest-line);
+  border-radius: 10px;
+  background: rgba(237,243,232,.82);
+}
+.forest-top-view-switcher button[class*="bg-white"] {
+  color: var(--forest-moss) !important;
+  background: #fffef9 !important;
+  box-shadow: 0 1px 4px rgba(35,71,45,.10) !important;
+}
+
+.forest-shared-panel {
+  padding: 1.05rem;
+  border: 1px solid var(--forest-line);
+  border-radius: 18px;
+  background:
+    radial-gradient(circle at 100% 0%, rgba(154,184,137,.16), transparent 12rem),
+    rgba(255,255,252,.93);
+  box-shadow: var(--forest-shadow);
+}
+.forest-score-modal { border: 1px solid var(--forest-line); }
+.forest-score-modal-titlebar {
+  background:
+    radial-gradient(circle at 15% 0%, rgba(174,206,149,.46), transparent 12rem),
+    linear-gradient(105deg, var(--forest-moss-deep), var(--forest-moss));
+}
+.forest-score-modal .forest-shared-panel {
+  margin-bottom: .5rem;
+  box-shadow: none;
+}
+.forest-shared-panel::before {
+  content: '共同加扣分  ·  選取學生後快速記錄表現';
+  display: block;
+  margin-bottom: .7rem;
+  color: var(--forest-moss-deep);
+  font-family: Georgia, 'Noto Serif TC', serif;
+  font-weight: 800;
+  letter-spacing: .035em;
+}
+.forest-score-grid > * {
+  min-height: 5.25rem !important;
+  border-radius: 12px !important;
+  box-shadow: none !important;
+}
+.forest-score-grid > button { font-size: .93rem !important; }
+.forest-score-grid > button > span:first-child { font-size: 1.25rem !important; }
+.forest-score-grid > button[class*="bg-blue"],
+.forest-score-grid > button[class*="bg-amber"] {
+  border-color: #bdd1b5 !important;
+  background: linear-gradient(180deg, #f7fbf4, #e8f1e2) !important;
+  color: var(--forest-moss-deep) !important;
+}
+.forest-score-grid > button[class*="bg-pink"] {
+  border-color: #efbbbb !important;
+  background: linear-gradient(180deg, #fff7f5, #fde5e1) !important;
+  color: #a53b32 !important;
+}
+.forest-score-grid > div:first-child {
+  border-color: #c7d9c0 !important;
+  background: #f1f6ec !important;
+}
+.forest-student-grid {
+  padding: .95rem;
+  border: 1px solid var(--forest-line);
+  border-radius: 18px;
+  background: rgba(255,255,252,.7);
+}
+.forest-student-grid .forest-student-card { min-height: 7.35rem; }
+.forest-group-grid {
+  padding: .95rem;
+  border: 1px solid var(--forest-line);
+  border-radius: 18px;
+  background: rgba(255,255,252,.7);
+}
+.forest-group-card {
+  border-color: var(--forest-line) !important;
+  background: rgba(255,255,252,.94) !important;
+  box-shadow: 0 3px 10px rgba(58,84,58,.06) !important;
+  transition: border-color .18s ease, box-shadow .18s ease, transform .18s ease;
+}
+.forest-group-card:hover {
+  border-color: var(--forest-sage) !important;
+  box-shadow: 0 7px 17px rgba(58,84,58,.11) !important;
+  transform: translateY(-1px);
+}
+.forest-group-card > div:first-child,
+.forest-group-card-footer { background: #f4f8f0 !important; }
+.forest-group-card-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: .5rem;
+}
+
+@media (max-width: 1023px) {
+  .forest-workspace { grid-template-columns: 1fr; }
+  .forest-honor-sidebar { position: static; }
+  .forest-honor-list { grid-template-columns: repeat(2, minmax(0, 1fr)) !important; }
+}
+@media (max-width: 639px) {
+  .forest-honor-list { grid-template-columns: 1fr !important; }
+  .forest-shared-panel { padding: .75rem; border-radius: 15px; }
+  .forest-score-grid > * { min-height: 4.75rem !important; }
+  .forest-content-heading { align-items: flex-start; }
+}
+
 @media (max-width: 639px) {
   .forest-dashboard, .forest-student-board { padding-left: .75rem; padding-right: .75rem; }
   .forest-honor-section { padding: .7rem; }
   .forest-topbar { border-radius: 15px !important; }
+  .forest-brand-copy { min-width: 0; }
+  .forest-brand-title { font-size: 1.05rem; white-space: nowrap; }
+  .forest-brand-subtitle { display: none; }
+  .forest-topbar-identity { max-width: 14rem; }
+  .forest-class-select { max-width: 7.25rem; }
+  .forest-student-login-card { padding: 1.5rem !important; }
+  .forest-student-content { margin-top: 4.25rem; }
+  .forest-student-table th,
+  .forest-student-table td { padding-left: .75rem !important; padding-right: .75rem !important; }
+  .forest-student-guide { padding: .75rem; }
 }
