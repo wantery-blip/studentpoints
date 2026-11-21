@@ -196,6 +196,7 @@ const formatStudentCardPoints = (value) => {
   const rounded = Math.round(Number(value || 0) * 10) / 10;
   return Number.isInteger(rounded) ? String(rounded) : rounded.toFixed(1);
 };
+const isThreeCharacterName = (name) => Array.from(String(name || '').trim()).length === 3;
 const growthStageFor = (score, configuredThresholds = DEFAULT_GROWTH_THRESHOLDS) => {
   const points = Number(score || 0);
   const [sprout, seedling, sapling, tree] = normalizeGrowthThresholds(configuredThresholds);
@@ -806,7 +807,7 @@ function StudentDashboard({ classId, onBack, onShowRewardGuide }) {
                     index === 2 ? 'bg-orange-300 text-orange-800' : 'bg-slate-100 text-slate-500'}`}>
                   #{index + 1}
                 </div>
-                <div className="mt-3 mb-0.5 font-bold text-slate-800 truncate w-full text-xs px-0.5">
+                <div className={`mt-3 mb-0.5 font-bold text-slate-800 truncate w-full text-xs px-0.5 ${isThreeCharacterName(s.name) ? 'forest-name-three' : ''}`}>
                   {s.name}
                 </div>
                 <div className={`text-base font-black leading-none ${s.totalPoints >= 0 ? 'text-indigo-600' : 'text-red-500'}`}>
@@ -2038,7 +2039,7 @@ function Dashboard({ user, teacherId, onLogout }) {
                         index === 2 ? 'bg-orange-300 text-orange-800' : 'bg-slate-100 text-slate-500'}`}>
                       <span style={{ fontSize: `${0.5625 * honorFontScale}rem` }}>{index + 1}</span>
                     </div>
-                    <div className="mt-3 mb-0.5 font-bold text-slate-800 truncate w-full px-0.5" style={{ fontSize: `${0.75 * honorFontScale}rem` }}>
+                    <div className={`mt-3 mb-0.5 font-bold text-slate-800 truncate w-full px-0.5 ${isThreeCharacterName(s.name) ? 'forest-name-three' : ''}`} style={{ fontSize: `${0.75 * honorFontScale}rem` }}>
                       {s.name}
                     </div>
                     <div className={`font-black leading-none ${s.totalPoints >= 0 ? 'text-indigo-600' : 'text-red-500'}`} style={{ fontSize: `${1 * honorFontScale}rem` }}>
@@ -3909,7 +3910,7 @@ const CompactStudentCard = React.memo(function CompactStudentCard({ student, sel
   const activate = () => onSelect(student);
   return <div role="button" tabIndex={0} onClick={activate} onKeyDown={event => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); activate(); } }} className={`forest-student-card min-h-24 rounded-xl border p-2 cursor-pointer transition shadow-sm ${selected ? 'border-indigo-500 ring-2 ring-indigo-200 bg-indigo-50' : 'border-slate-200 bg-white hover:border-indigo-300 hover:shadow-md'}`} title="點選後開啟加扣分視窗">
     <span className="forest-student-seat" style={{ fontSize: `${0.75 * fontScale}rem` }}>{student.studentNumber || '#'}</span>
-    <button type="button" onClick={event => { event.stopPropagation(); onShowHistory(student); }} className="forest-student-name truncate hover:underline focus:outline-none" style={{ fontSize: `${1.1 * fontScale}rem` }} title="查看加扣分紀錄">{student.name}</button>
+    <button type="button" onClick={event => { event.stopPropagation(); onShowHistory(student); }} className={`forest-student-name truncate hover:underline focus:outline-none ${isThreeCharacterName(student.name) ? 'forest-name-three' : ''}`} style={{ fontSize: `${1.1 * fontScale}rem` }} title="查看加扣分紀錄">{student.name}</button>
     <div className={`forest-student-score ${score < 0 ? 'forest-student-score-negative' : ''}`} style={{ fontSize: `${1.1 * fontScale}rem` }}>{formatStudentCardPoints(score)}</div>
     <div className={`forest-growth-plant forest-growth-stage-${growthStage}`} aria-label={`成長階段：${growthStageLabel[growthStage]}`} title={`成長階段：${growthStageLabel[growthStage]}`}><span className="forest-growth-soil" /><span className="forest-growth-stem" /><span className="forest-growth-leaf forest-growth-leaf-left" /><span className="forest-growth-leaf forest-growth-leaf-right" /><span className="forest-growth-canopy" /></div>
   </div>;

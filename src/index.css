@@ -303,6 +303,11 @@ body {
   line-height: 1.35;
   text-align: center;
 }
+.forest-name-three {
+  /* 補回末字後的字距，讓三字姓名仍在文字框的視覺中央。 */
+  letter-spacing: .18em;
+  padding-left: .18em !important;
+}
 .forest-student-score {
   position: relative;
   z-index: 2;
