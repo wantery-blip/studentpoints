@@ -160,6 +160,12 @@ const cardImageUrl = (cardOrImageKey) => {
 const withCardImages = (cards) => cards.map(card => ({ ...card, imageKey: card.imageKey || card.id || 'class_applause' }));
 const CARD_IMAGE_OPTIONS = DRAW_CARD_DEFAULTS.map(card => ({ id: card.id, name: card.name, file: `${card.id}.jpg` }));
 const drawCardStorageKey = (teacherId) => `studentpoints_draw_cards_${teacherId}`;
+const teacherDashboardBackgroundUrl = `${import.meta.env.BASE_URL}forest-assets/teacher-dashboard-paper-forest.png`;
+const teacherTopbarOverlayUrl = `${import.meta.env.BASE_URL}forest-assets/teacher-topbar-forest-overlay.png`;
+const honorBoardFrameUrl = `${import.meta.env.BASE_URL}forest-assets/honor-board-frame.png`;
+const honorGoldMedalUrl = `${import.meta.env.BASE_URL}forest-assets/honor-medal-gold.png`;
+const honorSilverMedalUrl = `${import.meta.env.BASE_URL}forest-assets/honor-medal-silver.png`;
+const honorBronzeMedalUrl = `${import.meta.env.BASE_URL}forest-assets/honor-medal-bronze.png`;
 
 const resolveActionPresets = (storedPresets) => {
   const defaults = BUILT_IN_PRESETS.map(fallback =>
@@ -168,19 +174,38 @@ const resolveActionPresets = (storedPresets) => {
   return [...defaults, ...storedPresets.filter(preset => !preset.presetKey)];
 };
 
-const groupContribution = (student, groupPoints, divisor) => {
-  if (student.groupId == null) return 0;
+const DEFAULT_GROWTH_THRESHOLDS = [10, 30, 60, 100];
+const normalizeGrowthThresholds = (value) => {
+  if (!Array.isArray(value) || value.length !== 4) return DEFAULT_GROWTH_THRESHOLDS;
+  const thresholds = value.map(Number);
+  return thresholds.every((threshold, index) => Number.isInteger(threshold) && threshold > 0 && (index === 0 || threshold > thresholds[index - 1]))
+    ? thresholds
+    : DEFAULT_GROWTH_THRESHOLDS;
+};
+
+const groupContribution = (student, groupPoints, divisor, includeInPersonalTotal = true) => {
+  if (!includeInPersonalTotal || student.groupId == null) return 0;
   return Number(groupPoints[student.groupId] || 0) / (Number(divisor) || 1);
 };
 
-const totalPointsFor = (student, groupPoints = {}, divisor = 1) =>
-  Number(student.points || 0) + groupContribution(student, groupPoints, divisor);
+const totalPointsFor = (student, groupPoints = {}, divisor = 1, includeInPersonalTotal = true) =>
+  Number(student.points || 0) + groupContribution(student, groupPoints, divisor, includeInPersonalTotal);
 
 const formatPoints = (value) => Number.isInteger(value) ? String(value) : Number(value).toFixed(2).replace(/\.00$/, '');
 const formatStudentCardPoints = (value) => {
   const rounded = Math.round(Number(value || 0) * 10) / 10;
   return Number.isInteger(rounded) ? String(rounded) : rounded.toFixed(1);
 };
+const growthStageFor = (score, configuredThresholds = DEFAULT_GROWTH_THRESHOLDS) => {
+  const points = Number(score || 0);
+  const [sprout, seedling, sapling, tree] = normalizeGrowthThresholds(configuredThresholds);
+  if (points >= tree) return 4;
+  if (points >= sapling) return 3;
+  if (points >= seedling) return 2;
+  if (points >= sprout) return 1;
+  return 0;
+};
+const growthStageLabel = ['土壤萌芽', '兩葉芽', '四葉幼苗', '小樹苗', '完整樹冠'];
 
 const QUOTA_HOLD_KEY = 'studentpoints_quota_hold';
 
@@ -685,10 +710,11 @@ function StudentDashboard({ classId, onBack, onShowRewardGuide }) {
   }, [classId]);
 
   const pointDivisor = Number(classInfo?.groupPointDivisor) || 1;
+  const includeGroupPointsInIndividualTotal = classInfo?.includeGroupPointsInIndividualTotal !== false;
   const displayedStudents = useMemo(() => students.map(student => ({
     ...student,
-    totalPoints: totalPointsFor(student, groupPoints, pointDivisor)
-  })), [students, groupPoints, pointDivisor]);
+    totalPoints: totalPointsFor(student, groupPoints, pointDivisor, includeGroupPointsInIndividualTotal)
+  })), [students, groupPoints, pointDivisor, includeGroupPointsInIndividualTotal]);
 
   // 即時監聽該班級學生點數
   useEffect(() => {
@@ -1297,10 +1323,12 @@ function Dashboard({ user, teacherId, onLogout }) {
 
   // 計算積分最高的前 8 名學生
   const groupPointDivisor = Number(selectedClass?.groupPointDivisor) || 1;
+  const includeGroupPointsInIndividualTotal = selectedClass?.includeGroupPointsInIndividualTotal !== false;
+  const growthThresholds = normalizeGrowthThresholds(selectedClass?.growthThresholds);
   const displayedStudents = useMemo(() => students.map(student => ({
     ...student,
-    totalPoints: totalPointsFor(student, groupPoints, groupPointDivisor)
-  })), [students, groupPoints, groupPointDivisor]);
+    totalPoints: totalPointsFor(student, groupPoints, groupPointDivisor, includeGroupPointsInIndividualTotal)
+  })), [students, groupPoints, groupPointDivisor, includeGroupPointsInIndividualTotal]);
   const topStudents = useMemo(() => {
     return [...displayedStudents].sort((a, b) => b.totalPoints - a.totalPoints).slice(0, 9);
   }, [displayedStudents]);
@@ -1373,7 +1401,7 @@ function Dashboard({ user, teacherId, onLogout }) {
         id: s.id,
         number: s.studentNumber,
         name: s.name,
-            points: totalPointsFor(s, groupPoints, groupPointDivisor),
+            points: totalPointsFor(s, groupPoints, groupPointDivisor, includeGroupPointsInIndividualTotal),
             individualPoints: s.points,
         groupId: s.groupId ?? null,
         lastReason: s.lastReason,
@@ -1399,7 +1427,7 @@ function Dashboard({ user, teacherId, onLogout }) {
       if (!silent) notify('備份請求失敗，請檢查網路或 Webhook 網址', 'error');
       return false;
     }
-  }, [notify, groupPoints, groupPointDivisor]);
+  }, [notify, groupPoints, groupPointDivisor, includeGroupPointsInIndividualTotal]);
 
   const checkAndPromptDailyReport = useCallback((automatic = false) => {
     if (students.length === 0) {
@@ -1462,7 +1490,7 @@ function Dashboard({ user, teacherId, onLogout }) {
     const sortedStudents = [...students].sort((a, b) => parseInt(a.studentNumber || 0) - parseInt(b.studentNumber || 0));
     let body = `[學生優良點數日報表] ${selectedClass?.name || ''} - ${todayStr}\n\n--------------------------------\n`;
     sortedStudents.forEach(s => {
-      body += `${s.studentNumber || '無座號'}. ${s.name}： ${formatPoints(totalPointsFor(s, groupPoints, groupPointDivisor))} 分 (最新: ${s.lastReason || '無'})\n`;
+      body += `${s.studentNumber || '無座號'}. ${s.name}： ${formatPoints(totalPointsFor(s, groupPoints, groupPointDivisor, includeGroupPointsInIndividualTotal))} 分 (最新: ${s.lastReason || '無'})\n`;
     });
     body += `--------------------------------\n此郵件由學生優良點數管理系統自動生成。`;
     const subject = encodeURIComponent(`[點數報表] ${selectedClass?.name} ${todayStr}`);
@@ -1859,13 +1887,10 @@ function Dashboard({ user, teacherId, onLogout }) {
   }
 
   return (
-    <div className="forest-dashboard max-w-7xl mx-auto p-4 sm:p-6 pb-20">
+    <div className="forest-dashboard max-w-7xl mx-auto p-4 sm:p-6 pb-20" style={{ '--teacher-forest-background': `url("${teacherDashboardBackgroundUrl}")` } as React.CSSProperties}>
       {/* 頂部功能導覽列 */}
-      <header className="forest-topbar flex flex-row flex-nowrap justify-between items-center bg-white p-3 sm:p-4 rounded-xl shadow-sm mb-6 gap-3 sticky top-0 z-20 border-b border-slate-100 overflow-x-auto">
+      <header className="forest-topbar flex flex-row flex-nowrap justify-between items-center bg-white p-3 sm:p-4 rounded-xl shadow-sm mb-6 gap-3 sticky top-0 z-20 border-b border-slate-100 overflow-x-auto" style={{ '--teacher-topbar-overlay': `url("${teacherTopbarOverlayUrl}")` } as React.CSSProperties}>
         <div className="forest-topbar-identity flex shrink-0 items-center gap-2 sm:gap-3 min-w-0">
-          <div className="forest-brand-mark bg-indigo-600 p-2 rounded-lg shadow-md">
-            <Sprout className="text-white w-6 h-6" />
-          </div>
           <div className="forest-brand-copy hidden sm:block shrink-0">
             <p className="forest-brand-title">合作型積分平台</p>
             <p className="forest-brand-subtitle">一起累積，每天成長</p>
@@ -1983,9 +2008,14 @@ function Dashboard({ user, teacherId, onLogout }) {
         <>
           <div className="forest-workspace animate-fade-in-up">
           {/* 左欄：Top 9 榮譽榜。 */}
-          <aside className="forest-honor-section forest-honor-sidebar">
+          <aside className="forest-honor-section forest-honor-sidebar" style={{
+            '--forest-honor-frame': `url("${honorBoardFrameUrl}")`,
+            '--forest-honor-gold': `url("${honorGoldMedalUrl}")`,
+            '--forest-honor-silver': `url("${honorSilverMedalUrl}")`,
+            '--forest-honor-bronze': `url("${honorBronzeMedalUrl}")`,
+          } as React.CSSProperties}>
             <h3 className="forest-honor-heading text-sm font-bold text-slate-500 uppercase mb-3 flex items-center justify-center gap-2">
-              <Crown className="w-4 h-4 text-yellow-500" /> 榮譽榜
+              榮譽榜
             </h3>
             <div className="forest-honor-list grid grid-cols-1 gap-2">
               {topStudents.length === 0 ? (
@@ -2006,7 +2036,7 @@ function Dashboard({ user, teacherId, onLogout }) {
                       ${index === 0 ? 'bg-yellow-400 text-yellow-900' : 
                         index === 1 ? 'bg-slate-300 text-slate-700' : 
                         index === 2 ? 'bg-orange-300 text-orange-800' : 'bg-slate-100 text-slate-500'}`}>
-                      <span style={{ fontSize: `${0.5625 * honorFontScale}rem` }}>#{index + 1}</span>
+                      <span style={{ fontSize: `${0.5625 * honorFontScale}rem` }}>{index + 1}</span>
                     </div>
                     <div className="mt-3 mb-0.5 font-bold text-slate-800 truncate w-full px-0.5" style={{ fontSize: `${0.75 * honorFontScale}rem` }}>
                       {s.name}
@@ -2039,6 +2069,7 @@ function Dashboard({ user, teacherId, onLogout }) {
                     onSelect={setSelectedScoreStudent}
                     onShowHistory={setHistoryStudent}
                     fontScale={studentFontScale}
+                    growthThresholds={growthThresholds}
                   />
                 ))}
               </div>
@@ -2608,6 +2639,7 @@ function CreateClassModal({ onClose, teacherId, onCreated }) {
         if (existing.exists()) throw new Error('DUPLICATE_CLASS_CODE');
         tx.set(classRef, {
           name: name.trim(), teacherId, classCode: finalCode, totalGroups: 6, groupPointDivisor: 1,
+          includeGroupPointsInIndividualTotal: true, growthThresholds: DEFAULT_GROWTH_THRESHOLDS,
           createdAt: serverTimestamp()
         });
         tx.set(codeRef, { classId: classRef.id, teacherId, createdAt: serverTimestamp() });
@@ -3075,6 +3107,9 @@ function SettingsModal({ onClose, classId, teacherUid, currentEmail, currentBack
   const [editingClassCode, setEditingClassCode] = useState('');
   const [editingTotalGroups, setEditingTotalGroups] = useState('6');
   const [editingGroupPointDivisor, setEditingGroupPointDivisor] = useState('1');
+  const [editingIncludeGroupPoints, setEditingIncludeGroupPoints] = useState(true);
+  const [growthThresholds, setGrowthThresholds] = useState(DEFAULT_GROWTH_THRESHOLDS);
+  const [savingGrowthThresholds, setSavingGrowthThresholds] = useState(false);
   const [oldPassword, setOldPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -3092,6 +3127,11 @@ function SettingsModal({ onClose, classId, teacherUid, currentEmail, currentBack
   const [githubImageFile, setGithubImageFile] = useState('');
   const [githubImageName, setGithubImageName] = useState('');
   const [savingGithubImages, setSavingGithubImages] = useState(false);
+
+  useEffect(() => {
+    const selectedClass = classes.find(item => item.id === selectedClassId);
+    setGrowthThresholds(normalizeGrowthThresholds(selectedClass?.growthThresholds));
+  }, [classes, selectedClassId]);
 
   useEffect(() => {
     if (!isPrimaryAdmin) { setTeacherRequests([]); return undefined; }
@@ -3204,7 +3244,13 @@ function SettingsModal({ onClose, classId, teacherUid, currentEmail, currentBack
             tx.delete(oldRef);
           }
         }
-        tx.update(classRef, { name, classCode: nextCode, totalGroups, groupPointDivisor });
+        tx.update(classRef, {
+          name,
+          classCode: nextCode,
+          totalGroups,
+          groupPointDivisor,
+          includeGroupPointsInIndividualTotal: editingIncludeGroupPoints,
+        });
       });
       setEditingClassId(null);
       notify('班級資訊已更新');
@@ -3212,6 +3258,29 @@ function SettingsModal({ onClose, classId, teacherUid, currentEmail, currentBack
       console.error(err);
       if (reportQuotaError(err)) return;
       notify(err.message === 'DUPLICATE_CLASS_CODE' ? '代碼已被其他班級使用' : '修改失敗', 'error');
+    }
+  };
+
+  const saveGrowthThresholdSettings = async () => {
+    if (!selectedClassId) { notify('請先在主畫面選擇要設定的班級。', 'error'); return; }
+    const nextThresholds = growthThresholds.map(value => Number(value));
+    const valid = nextThresholds.length === 4 && nextThresholds.every((value, index) =>
+      Number.isInteger(value) && value > 0 && value <= 100000 && (index === 0 || value > nextThresholds[index - 1])
+    );
+    if (!valid) {
+      notify('請填入由小到大的正整數門檻（例如 10、30、60、100）。', 'error');
+      return;
+    }
+    setSavingGrowthThresholds(true);
+    try {
+      await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'classes', selectedClassId), { growthThresholds: nextThresholds });
+      notify('學生卡成長分數區間已儲存。');
+    } catch (saveError) {
+      console.error('儲存成長分數區間失敗', saveError);
+      if (reportQuotaError(saveError)) return;
+      notify('儲存失敗，請確認已發布最新 Firestore Rules。', 'error');
+    } finally {
+      setSavingGrowthThresholds(false);
     }
   };
 
@@ -3435,7 +3504,7 @@ function SettingsModal({ onClose, classId, teacherUid, currentEmail, currentBack
             </form>
           )}
 
-          {/* 2. 班級管理（班級名稱、學生查詢代碼與小組換算 N） */}
+          {/* 2. 班級管理（班級名稱、學生查詢代碼、小組換算與個人總分） */}
           {activeTab === 'classes' && (
             <div className="space-y-4 max-h-[320px] overflow-y-auto">
               {classes.length === 0 ? (
@@ -3453,6 +3522,10 @@ function SettingsModal({ onClose, classId, teacherUid, currentEmail, currentBack
                         </div>
                         <label className="text-xs text-slate-500">小組積分換算 N（小組分數 ÷ N）</label>
                         <input type="number" min="0.01" max="100" step="0.01" value={editingGroupPointDivisor} onChange={(e) => setEditingGroupPointDivisor(e.target.value)} className="px-2 py-1 text-sm border rounded bg-white" />
+                        <label className="flex items-start gap-2 rounded border border-emerald-100 bg-emerald-50/60 px-2.5 py-2 text-xs text-slate-700">
+                          <input type="checkbox" checked={editingIncludeGroupPoints} onChange={(e) => setEditingIncludeGroupPoints(e.target.checked)} className="mt-0.5 h-4 w-4 accent-emerald-700" />
+                          <span><span className="font-bold text-emerald-900">併入個人總積分</span><br />勾選後，個人總積分會加上所屬小組分數 ÷ N；取消勾選後只計算個人分數。</span>
+                        </label>
                         <div className="flex justify-end gap-2 mt-1">
                           <button onClick={() => setEditingClassId(null)} className="text-xs text-slate-500 hover:text-slate-700 border bg-white px-2.5 py-1 rounded">取消</button>
                           <button onClick={() => handleUpdateClassInfo(c.id)} className="text-xs bg-emerald-600 text-white px-2.5 py-1 rounded hover:bg-emerald-700 font-bold">儲存</button>
@@ -3475,9 +3548,13 @@ function SettingsModal({ onClose, classId, teacherUid, currentEmail, currentBack
                             <span className="text-xs bg-white border border-slate-200 text-emerald-700 font-bold px-2 py-0.5 rounded">
                               {c.totalGroups || 6} 組
                             </span>
+                            <span className="text-xs text-slate-300">｜</span>
+                            <span className={`text-xs font-bold ${c.includeGroupPointsInIndividualTotal !== false ? 'text-emerald-700' : 'text-slate-500'}`}>
+                              小組 ÷ N {c.includeGroupPointsInIndividualTotal !== false ? '併入個人總分' : '不併入個人總分'}
+                            </span>
                           </div>
                         </div>
-                        <div className="flex gap-1"><button onClick={() => { setEditingClassId(c.id); setEditingClassName(c.name); setEditingClassCode(c.classCode || c.id); setEditingTotalGroups(String(c.totalGroups || 6)); setEditingGroupPointDivisor(String(c.groupPointDivisor || 1)); }} className="flex items-center gap-1 text-xs text-slate-500 hover:text-indigo-600 px-2 py-1 border border-slate-200 rounded bg-white" title="編輯班級名稱、學生查詢代碼、分組數量與 N"><Pencil className="w-3.5 h-3.5" />編輯</button><button onClick={() => handleDeleteClass(c)} className="text-slate-400 hover:text-red-600 p-1" title="刪除班級資料"><Trash2 className="w-4 h-4" /></button></div>
+                        <div className="flex gap-1"><button onClick={() => { setEditingClassId(c.id); setEditingClassName(c.name); setEditingClassCode(c.classCode || c.id); setEditingTotalGroups(String(c.totalGroups || 6)); setEditingGroupPointDivisor(String(c.groupPointDivisor || 1)); setEditingIncludeGroupPoints(c.includeGroupPointsInIndividualTotal !== false); }} className="flex items-center gap-1 text-xs text-slate-500 hover:text-indigo-600 px-2 py-1 border border-slate-200 rounded bg-white" title="編輯班級名稱、學生查詢代碼、分組數量、N 與個人總分規則"><Pencil className="w-3.5 h-3.5" />編輯</button><button onClick={() => handleDeleteClass(c)} className="text-slate-400 hover:text-red-600 p-1" title="刪除班級資料"><Trash2 className="w-4 h-4" /></button></div>
                       </div>
                     )}
                   </div>
@@ -3489,6 +3566,27 @@ function SettingsModal({ onClose, classId, teacherUid, currentEmail, currentBack
           {/* 3. 獎勵設定：共同加扣分與學生兌獎項目 */}
           {activeTab === 'rewards' && (
             <div className="space-y-4">
+              <section className="rounded-lg border border-lime-200 bg-lime-50/60 p-3">
+                <h4 className="flex items-center gap-2 text-sm font-bold text-slate-800"><Sprout className="h-4 w-4 text-lime-700" /> 學生卡成長分數區間</h4>
+                <p className="mt-1 text-xs text-slate-600">正在設定：{selectedClassName || '未選擇班級'}。每一段以「下一階段開始的分數」決定，分數必須由小到大。</p>
+                <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4">
+                  {[
+                    ['兩葉芽', 0],
+                    ['四葉幼苗', 1],
+                    ['小樹苗', 2],
+                    ['完整樹冠', 3],
+                  ].map(([label, index]) => (
+                    <label key={String(label)} className="text-xs font-medium text-slate-600">{label}下限
+                      <input type="number" min="1" max="100000" step="1" value={growthThresholds[Number(index)] ?? ''} onChange={(event) => setGrowthThresholds(current => current.map((value, itemIndex) => itemIndex === Number(index) ? Number(event.target.value) : value))} className="mt-1 w-full rounded border border-lime-200 bg-white/85 px-2 py-1.5 text-sm font-bold text-slate-800" />
+                    </label>
+                  ))}
+                </div>
+                <p className="mt-3 rounded bg-white/65 px-2 py-1.5 text-xs text-slate-600">
+                  <span className="font-bold text-slate-700">預覽：</span>
+                  0–{Math.max(0, Number(growthThresholds[0] || 10) - 1)} 分：土壤萌芽；{growthThresholds[0] || 10}–{Math.max(0, Number(growthThresholds[1] || 30) - 1)} 分：兩葉芽；{growthThresholds[1] || 30}–{Math.max(0, Number(growthThresholds[2] || 60) - 1)} 分：四葉幼苗；{growthThresholds[2] || 60}–{Math.max(0, Number(growthThresholds[3] || 100) - 1)} 分：小樹苗；{growthThresholds[3] || 100} 分以上：完整樹冠。
+                </p>
+                <button type="button" onClick={saveGrowthThresholdSettings} disabled={!selectedClassId || savingGrowthThresholds} className="mt-3 w-full rounded-lg bg-lime-700 py-2 text-sm font-bold text-white transition hover:bg-lime-800 disabled:cursor-not-allowed disabled:opacity-50">{savingGrowthThresholds ? '儲存中...' : '儲存成長分數區間'}</button>
+              </section>
               <div className="rounded-lg border border-emerald-100 bg-emerald-50/60 p-3">
                 <h4 className="flex items-center gap-2 text-sm font-bold text-slate-800"><List className="h-4 w-4 text-emerald-700" /> 共同加扣分項目</h4>
                 <p className="mt-1 text-xs text-slate-600">這些項目會出現在學生加扣分浮動視窗與小組操作中；兌獎會扣除點數，但不標示為扣分。</p>
@@ -3802,15 +3900,18 @@ type CompactStudentCardProps = {
   onSelect: (student: any) => void;
   onShowHistory: (student: any) => void;
   fontScale: number;
+  growthThresholds: number[];
 };
 
-const CompactStudentCard = React.memo(function CompactStudentCard({ student, selected, onSelect, onShowHistory, fontScale }: CompactStudentCardProps) {
+const CompactStudentCard = React.memo(function CompactStudentCard({ student, selected, onSelect, onShowHistory, fontScale, growthThresholds }: CompactStudentCardProps) {
   const score = student.totalPoints ?? student.points;
+  const growthStage = growthStageFor(score, growthThresholds);
   const activate = () => onSelect(student);
   return <div role="button" tabIndex={0} onClick={activate} onKeyDown={event => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); activate(); } }} className={`forest-student-card min-h-24 rounded-xl border p-2 cursor-pointer transition shadow-sm ${selected ? 'border-indigo-500 ring-2 ring-indigo-200 bg-indigo-50' : 'border-slate-200 bg-white hover:border-indigo-300 hover:shadow-md'}`} title="點選後開啟加扣分視窗">
     <span className="forest-student-seat" style={{ fontSize: `${0.75 * fontScale}rem` }}>{student.studentNumber || '#'}</span>
     <button type="button" onClick={event => { event.stopPropagation(); onShowHistory(student); }} className="forest-student-name truncate hover:underline focus:outline-none" style={{ fontSize: `${1.1 * fontScale}rem` }} title="查看加扣分紀錄">{student.name}</button>
     <div className={`forest-student-score ${score < 0 ? 'forest-student-score-negative' : ''}`} style={{ fontSize: `${1.1 * fontScale}rem` }}>{formatStudentCardPoints(score)}</div>
+    <div className={`forest-growth-plant forest-growth-stage-${growthStage}`} aria-label={`成長階段：${growthStageLabel[growthStage]}`} title={`成長階段：${growthStageLabel[growthStage]}`}><span className="forest-growth-soil" /><span className="forest-growth-stem" /><span className="forest-growth-leaf forest-growth-leaf-left" /><span className="forest-growth-leaf forest-growth-leaf-right" /><span className="forest-growth-canopy" /></div>
   </div>;
 });
 

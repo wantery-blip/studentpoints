@@ -45,6 +45,18 @@ body {
 .forest-student-board {
   position: relative;
 }
+.forest-dashboard {
+  background-image:
+    linear-gradient(rgba(247,241,228,.10), rgba(247,241,228,.10)),
+    var(--teacher-forest-background);
+  background-position: center top;
+  background-repeat: no-repeat;
+  /* Use the viewport as the canvas so the illustrated meadow stays visible
+     at the bottom of the current screen instead of below a tall student grid. */
+  background-size: cover, 100vw 100vh;
+  background-attachment: fixed;
+}
+
 
 .forest-student-login,
 .forest-student-guide,
@@ -58,7 +70,7 @@ body {
 .forest-student-guide header,
 .forest-student-table {
   border: 1px solid var(--forest-line) !important;
-  background: rgba(255,255,252,.94) !important;
+  background: rgba(255,252,241,.92) !important;
   box-shadow: var(--forest-shadow) !important;
 }
 .forest-student-login-card::before {
@@ -102,11 +114,10 @@ body {
 }
 .forest-student-guide article {
   border-color: var(--forest-line) !important;
-  background: rgba(255,255,252,.94) !important;
+  background: linear-gradient(145deg, rgba(241,232,204,.98), rgba(228,215,176,.96)) !important;
   box-shadow: var(--forest-shadow) !important;
 }
 
-.forest-dashboard::after,
 .forest-student-board::after {
   content: '❧';
   position: fixed;
@@ -141,14 +152,25 @@ body {
 }
 
 .forest-topbar {
-  border: 1px solid var(--forest-line) !important;
-  border-radius: 18px !important;
-  background:
-    radial-gradient(circle at 8% 0%, rgba(154,184,137,.18), transparent 11rem),
-    rgba(255,255,252,.93) !important;
-  backdrop-filter: blur(8px);
+  border: 0 !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  backdrop-filter: none;
   scrollbar-width: thin;
 }
+.forest-topbar::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background-image: var(--teacher-topbar-overlay);
+  background-size: 100% 100%;
+  background-repeat: no-repeat;
+  opacity: .86;
+}
+.forest-topbar > * { position: relative; z-index: 1; }
 
 .forest-brand-mark,
 .forest-title-mark {
@@ -165,18 +187,6 @@ body {
   font-weight: 800;
   letter-spacing: .06em;
   line-height: 1.15;
-}
-.forest-brand-title::before { content: '🌱'; font-size: .85em; margin-right: .35rem; }
-.forest-brand-copy::after {
-  content: '❧';
-  position: absolute;
-  right: -.8rem;
-  top: -.55rem;
-  color: var(--forest-sage);
-  font: 2.2rem/1 Georgia, serif;
-  transform: rotate(19deg);
-  opacity: .8;
-  pointer-events: none;
 }
 .forest-brand-subtitle {
   margin: .12rem 0 0;
@@ -239,14 +249,20 @@ body {
   position: relative;
   display: grid;
   grid-template-rows: 2rem auto 1fr;
-  border-color: var(--forest-line) !important;
+  border-color: #7f9d62 !important;
   border-radius: 15px !important;
-  background: rgba(255,255,252,.94) !important;
+  background-color: rgba(255,252,240,.28) !important;
+  background-image:
+    url('/forest-assets/student-card-leaves-top-right.png'),
+    url('/forest-assets/student-card-grass-bottom-left.png'),
+    url('/forest-assets/student-card-grass-bottom-right.png') !important;
+  background-position: right top, left bottom, right bottom !important;
+  background-repeat: no-repeat !important;
+  /* 素材本身帶有透明留白；放大背景盒後，實際枝葉約佔卡片五分之一。 */
+  background-size: 38% auto, 38% auto, 38% auto !important;
   box-shadow: 0 3px 10px rgba(58,84,58,.06) !important;
 }
-.forest-student-card::before {
-  display: none;
-}
+.forest-student-card::before { display: none; }
 .forest-student-card[class*="ring-2"] {
   border-color: var(--forest-moss) !important;
   background: var(--forest-sage-pale) !important;
@@ -256,6 +272,7 @@ body {
 .forest-student-card [class*="text-emerald"] { color: var(--forest-moss) !important; }
 .forest-student-seat {
   position: absolute;
+  z-index: 2;
   top: .48rem;
   left: .5rem;
   display: inline-flex;
@@ -274,6 +291,8 @@ body {
   text-align: center;
 }
 .forest-student-name {
+  position: relative;
+  z-index: 2;
   grid-row: 2;
   align-self: start;
   display: block;
@@ -285,14 +304,36 @@ body {
   text-align: center;
 }
 .forest-student-score {
+  position: relative;
+  z-index: 2;
   grid-row: 3;
   align-self: end;
+  padding-bottom: 1.4rem;
   color: #397144 !important;
   font-weight: 800;
   line-height: 1;
   text-align: center;
 }
 .forest-student-score-negative { color: var(--forest-danger) !important; }
+.forest-growth-plant {
+  position: absolute;
+  z-index: 1;
+  left: 50%;
+  bottom: -.2rem;
+  width: 4.2rem;
+  height: 4.2rem;
+  transform: translateX(-50%);
+  pointer-events: none;
+  background-position: center bottom;
+  background-repeat: no-repeat;
+  background-size: contain;
+}
+.forest-growth-plant > span { display: none; }
+.forest-growth-stage-0 { background-image: url('/forest-assets/student-growth-stage-0.png'); }
+.forest-growth-stage-1 { background-image: url('/forest-assets/student-growth-stage-1.png'); }
+.forest-growth-stage-2 { background-image: url('/forest-assets/student-growth-stage-2.png'); }
+.forest-growth-stage-3 { background-image: url('/forest-assets/student-growth-stage-3.png'); }
+.forest-growth-stage-4 { background-image: url('/forest-assets/student-growth-stage-4.png'); }
 
 /* Main actions become moss; destructive actions retain red. */
 .forest-app button[class*="bg-indigo-600"],
@@ -402,39 +443,85 @@ body {
   top: 6.8rem;
   align-self: start;
   margin: 0;
-  padding: .75rem !important;
-  border-color: #d7c9a7 !important;
-  background:
-    linear-gradient(180deg, rgba(128,82,43,.96) 0, rgba(128,82,43,.96) 4.35rem, rgba(255,252,242,.97) 4.36rem, rgba(248,243,227,.96) 100%) !important;
-  box-shadow: 0 10px 24px rgba(87,62,38,.12) !important;
+  min-height: 36rem;
+  /* 木牌只顯示標題；第一名卡片從木牌下方的榜單區開始。 */
+  padding: 8.8rem 1.35rem 5.8rem !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  background: var(--forest-honor-frame) center / 100% 100% no-repeat !important;
+  box-shadow: none !important;
 }
 .forest-honor-sidebar .forest-honor-heading {
-  min-height: 3.5rem;
-  margin: -.1rem 0 .75rem !important;
+  position: absolute;
+  top: 7%;
+  left: 14%;
+  right: 14%;
+  min-height: 2.2rem;
+  margin: 0 !important;
   color: #fff9e8 !important;
-  font-size: 1.35rem !important;
+  font-size: 1.42rem !important;
   text-shadow: 0 1px 1px rgba(53,32,15,.35);
+  transform: translateY(-50%);
 }
 .forest-honor-sidebar .forest-honor-heading::before,
-.forest-honor-sidebar .forest-honor-heading::after { color: #e5c271; content: '❧'; font-size: 1.25rem; }
-.forest-honor-sidebar .forest-honor-card { border-color: #eadcc0 !important; }
+.forest-honor-sidebar .forest-honor-heading::after { content: none; }
+.forest-honor-sidebar .forest-honor-card { border-color: #eadcc0 !important; background: rgba(255,253,244,.93) !important; }
 .forest-honor-list .forest-honor-card {
   display: grid !important;
-  grid-template-columns: 2.2rem minmax(0, 1fr) auto;
+  grid-template-columns: 2.35rem minmax(0, 1fr) auto;
   align-items: center;
-  min-height: 3.5rem;
+  min-height: 3.7rem;
   height: auto !important;
-  padding: .5rem .6rem !important;
+  padding: .45rem .55rem !important;
   text-align: left !important;
+  border-radius: 13px !important;
+  box-shadow: 0 2px 5px rgba(98,72,39,.07) !important;
 }
 .forest-honor-list .forest-honor-card > div:nth-child(1) {
-  position: static !important;
+  position: relative !important;
   grid-column: 1;
+  display: flex;
+  width: 2.1rem;
+  height: 2.1rem;
+  align-items: center;
+  justify-content: center;
   margin: 0 !important;
-  padding: .34rem .15rem !important;
+  padding: 0 !important;
   border-radius: 999px !important;
+  background: radial-gradient(circle at 35% 25%, #fffdf7, #edddbd) !important;
+  color: #543a23 !important;
   text-align: center;
   box-shadow: none !important;
+}
+.forest-honor-list .forest-honor-card:nth-child(1) > div:nth-child(1),
+.forest-honor-list .forest-honor-card:nth-child(2) > div:nth-child(1),
+.forest-honor-list .forest-honor-card:nth-child(3) > div:nth-child(1) {
+  width: 2.55rem;
+  height: 2.55rem;
+  background-repeat: no-repeat !important;
+  background-position: center !important;
+  background-size: contain !important;
+  color: #4a331c !important;
+  text-shadow: 0 1px 0 rgba(255,255,255,.72);
+}
+.forest-honor-list .forest-honor-card:nth-child(1) > div:nth-child(1) { background-image: var(--forest-honor-gold) !important; }
+.forest-honor-list .forest-honor-card:nth-child(2) > div:nth-child(1) { background-image: var(--forest-honor-silver) !important; }
+.forest-honor-list .forest-honor-card:nth-child(3) > div:nth-child(1) { background-image: var(--forest-honor-bronze) !important; }
+.forest-honor-list .forest-honor-card > div:nth-child(1) span {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  font-size: .92rem !important;
+  font-weight: 900;
+  line-height: 1;
+  text-align: center;
+}
+/* 金牌上方有皇冠；數字的圓心需落在皇冠下方的主圓盤。 */
+.forest-honor-list .forest-honor-card:nth-child(1) > div:nth-child(1) span {
+  inset: auto 0;
+  top: 60%;
+  transform: translateY(-50%);
 }
 .forest-honor-list .forest-honor-card > div:nth-child(2) {
   grid-column: 2;
@@ -443,13 +530,13 @@ body {
   padding: 0 .35rem !important;
   text-align: left !important;
   color: var(--forest-ink) !important;
-  font-size: .98rem !important;
+  font-size: 1rem !important;
   font-weight: 800 !important;
 }
 .forest-honor-list .forest-honor-card > div:nth-child(3) {
   grid-column: 3;
   color: #55745b !important;
-  font-size: .82rem !important;
+  font-size: .9rem !important;
   font-weight: 700 !important;
   white-space: nowrap;
 }
@@ -535,18 +622,18 @@ body {
   padding: .95rem;
   border: 1px solid var(--forest-line);
   border-radius: 18px;
-  background: rgba(255,255,252,.7);
+  background: rgba(239,228,194,.48);
 }
 .forest-student-grid .forest-student-card { min-height: 7.35rem; }
 .forest-group-grid {
   padding: .95rem;
   border: 1px solid var(--forest-line);
   border-radius: 18px;
-  background: rgba(255,255,252,.7);
+  background: rgba(245,237,211,.34);
 }
 .forest-group-card {
   border-color: var(--forest-line) !important;
-  background: rgba(255,255,252,.94) !important;
+  background: rgba(255,252,240,.64) !important;
   box-shadow: 0 3px 10px rgba(58,84,58,.06) !important;
   transition: border-color .18s ease, box-shadow .18s ease, transform .18s ease;
 }
@@ -556,7 +643,7 @@ body {
   transform: translateY(-1px);
 }
 .forest-group-card > div:first-child,
-.forest-group-card-footer { background: #f4f8f0 !important; }
+.forest-group-card-footer { background: rgba(237,245,229,.58) !important; }
 .forest-group-card-footer {
   display: flex;
   align-items: center;
@@ -590,4 +677,5 @@ body {
   .forest-student-table th,
   .forest-student-table td { padding-left: .75rem !important; padding-right: .75rem !important; }
   .forest-student-guide { padding: .75rem; }
+  .forest-dashboard { background-size: cover, auto 100vh; background-attachment: scroll; }
 }

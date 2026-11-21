@@ -116,15 +116,21 @@ service cloud.firestore {
           request.resource.data.totalGroups >= 1 && request.resource.data.totalGroups <= 20 &&
           (!request.resource.data.keys().hasAny(['groupPointDivisor']) ||
             (request.resource.data.groupPointDivisor is number && request.resource.data.groupPointDivisor > 0 && request.resource.data.groupPointDivisor <= 100)) &&
+          (!request.resource.data.keys().hasAny(['includeGroupPointsInIndividualTotal']) || request.resource.data.includeGroupPointsInIndividualTotal is bool) &&
+          (!request.resource.data.keys().hasAny(['growthThresholds']) ||
+            (request.resource.data.growthThresholds is list && request.resource.data.growthThresholds.size() == 4)) &&
           getAfter(codePath(request.resource.data.classCode)).data.classId == classId;
         allow update: if isOwner(resource.data.teacherId) &&
           request.resource.data.teacherId == resource.data.teacherId &&
-          request.resource.data.diff(resource.data).affectedKeys().hasOnly(['name','classCode','totalGroups','groupPointDivisor']) &&
+          request.resource.data.diff(resource.data).affectedKeys().hasOnly(['name','classCode','totalGroups','groupPointDivisor','includeGroupPointsInIndividualTotal','growthThresholds']) &&
           request.resource.data.name is string &&
           validCode(request.resource.data.classCode) &&
           request.resource.data.totalGroups >= 1 && request.resource.data.totalGroups <= 20 &&
           (!request.resource.data.keys().hasAny(['groupPointDivisor']) ||
             (request.resource.data.groupPointDivisor is number && request.resource.data.groupPointDivisor > 0 && request.resource.data.groupPointDivisor <= 100)) &&
+          (!request.resource.data.keys().hasAny(['includeGroupPointsInIndividualTotal']) || request.resource.data.includeGroupPointsInIndividualTotal is bool) &&
+          (!request.resource.data.keys().hasAny(['growthThresholds']) ||
+            (request.resource.data.growthThresholds is list && request.resource.data.growthThresholds.size() == 4)) &&
           getAfter(codePath(request.resource.data.classCode)).data.classId == classId;
         allow delete: if isOwner(resource.data.teacherId);
       }
@@ -211,7 +217,7 @@ service cloud.firestore {
         allow delete: if ownsClass(resource.data.classId);
       }
 
-      // 小組分數獨立保存；個人總積分由「個人分數 + 小組分數 ÷ 該班 N」即時計算。
+      // 小組分數獨立保存；班級設定可決定是否將「小組分數 ÷ N」併入個人總積分。
       match /group_points/{groupPointId} {
         allow get, list: if canReadClass(resource.data.classId);
         allow create: if ownsClass(request.resource.data.classId) &&
