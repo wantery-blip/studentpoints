@@ -1,0 +1,42 @@
+# 教師首頁風格抽換：核心素材清單
+
+本文件記錄教師首頁的視覺風格素材。下次要更換視覺主題時，應優先替換下列圖片，並保持 React 元件、Firebase 資料流程、積分計算與響應式版面不變。
+
+## 必換的六類素材
+
+| 類別 | 檔案 | 使用位置 | 抽換注意事項 |
+|---|---|---|---|
+| 教師首頁大型背景 | `public/forest-assets/teacher-dashboard-paper-forest.png` | 教師首頁全頁背景 | 應保留足夠低對比的中央留白，避免干擾卡片與文字。 |
+| 頂端功能列背景枝葉 | `public/forest-assets/teacher-topbar-forest-overlay.png` | 頂端功能列 | 透明素材；重要裝飾放在兩側，不可遮住班級選單與功能按鈕。 |
+| 榮譽榜框架 | `public/forest-assets/honor-board-frame.png` | 左側榮譽榜 | 標題木牌／框架需留出上方標題區與中央排名清單區。 |
+| 第一名獎牌 | `public/forest-assets/honor-medal-gold.png` | 榮譽榜第一名 | 中央內圓需保留給數字；皇冠存在時，數字定位在皇冠下方內圓中心。 |
+| 第二名獎牌 | `public/forest-assets/honor-medal-silver.png` | 榮譽榜第二名 | 獎牌內圓需置中且留白，供數字覆蓋。 |
+| 第三名獎牌 | `public/forest-assets/honor-medal-bronze.png` | 榮譽榜第三名 | 獎牌內圓需置中且留白，供數字覆蓋。 |
+| 學生卡右上裝飾 | `public/forest-assets/student-card-leaves-top-right.png` | 每張學生卡右上角 | 透明素材，約佔學生卡寬度五分之一；不可遮住座號。 |
+| 學生卡左下裝飾 | `public/forest-assets/student-card-grass-bottom-left.png` | 每張學生卡左下角 | 透明素材，約佔學生卡寬度五分之一；不可遮住成長植物。 |
+| 學生卡右下裝飾 | `public/forest-assets/student-card-grass-bottom-right.png` | 每張學生卡右下角 | 透明素材，約佔學生卡寬度五分之一；不可遮住成長植物。 |
+| 成長階段 0 | `public/forest-assets/student-growth-stage-0.png` | 學生卡底部中央 | 對應最低分數區間（預設 0–9 分）。 |
+| 成長階段 1 | `public/forest-assets/student-growth-stage-1.png` | 學生卡底部中央 | 對應第二階段（預設 10–29 分）。 |
+| 成長階段 2 | `public/forest-assets/student-growth-stage-2.png` | 學生卡底部中央 | 對應第三階段（預設 30–59 分）。 |
+| 成長階段 3 | `public/forest-assets/student-growth-stage-3.png` | 學生卡底部中央 | 對應第四階段（預設 60–99 分）。 |
+| 成長階段 4 | `public/forest-assets/student-growth-stage-4.png` | 學生卡底部中央 | 對應最高階段（預設 100 分以上）。 |
+
+> 雖然表格共有 14 個檔案，但它們對應六類視覺區塊：首頁背景、頂端背景、榮譽榜框架、前三名獎牌、學生卡三角落裝飾、五階段成長圖。
+
+## 不需要更換圖片的部分
+
+- 頂端與介面按鈕使用 Lucide 程式圖示，不是圖片檔；改風格時調整 `src/index.css` 的色彩、圓角、邊框、陰影與圖示顏色即可。
+- 抽獎卡圖片位於 `public/reward-cards/`，不屬於教師首頁核心風格。若要連抽獎卡一起換主題，再另外重製該資料夾內的獎卡圖片。
+- `public/draw-card.html` 的內嵌 SVG 是抽獎卡缺圖時的備用插圖，只有要改抽獎卡頁面風格才需要處理。
+
+## 抽換流程
+
+1. 先建立或選定新的完整視覺主題。
+2. 依上表替換對應圖片；透明角落裝飾與成長圖需保留透明背景。
+3. 視新風格調整 `src/index.css` 的主色、紙紋底色、卡片透明度、邊框與陰影；不要變更積分、登入、Firebase 或資料欄位程式。
+4. 檢查榮譽榜標題是否仍置於框架中央、前三名數字是否仍位於獎牌內圓中心、學生卡文字是否未被角落與成長圖遮住。
+5. 執行 `npm run check`、`npm run build`、`npm run check:pages` 後，再提交推送。
+
+## 下次可直接使用的指令
+
+> 請依 `STYLE_ASSETS.md` 抽換教師首頁視覺風格；只更換列出的核心圖片與必要 CSS，不改動所有既有功能、Firebase 資料流程、積分規則與響應式版面。完成後進行本機測試。

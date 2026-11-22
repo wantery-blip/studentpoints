@@ -15,6 +15,8 @@
 
 學生個人帳號、個人查分／排名、大樹裝飾與積分飾品商城尚未實作；完整的決策與後續階段請見 [ROADMAP.md](ROADMAP.md)。
 
+教師首頁若需更換完整視覺風格，請依 [STYLE_ASSETS.md](STYLE_ASSETS.md) 的核心圖片清單與抽換流程進行。
+
 ## 一、修正內容
 
 - 教師：Firebase 電子郵件 + 密碼登入、`browserLocalPersistence` 本機持久登入、確實 `signOut()` 登出，忘記密碼可寄重設信。
