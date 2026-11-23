@@ -687,6 +687,20 @@ function StudentLogin({ onJoin, onBack }) {
   );
 }
 
+// --- 學生唯讀成長卡：不提供加扣分操作或歷程，僅呈現班級公開積分與成長階段。 ---
+function StudentReadOnlyCard({ student, growthThresholds }) {
+  const score = student.totalPoints ?? student.points;
+  const growthStage = growthStageFor(score, growthThresholds);
+  return (
+    <article className="forest-student-card min-h-28 rounded-xl border p-2 shadow-sm" title={`${student.name}：${growthStageLabel[growthStage]}`}>
+      <span className="forest-student-seat">{student.studentNumber || '#'}</span>
+      <p className={`forest-student-name truncate ${isThreeCharacterName(student.name) ? 'forest-name-three' : ''}`}>{student.name}</p>
+      <p className={`forest-student-score ${score < 0 ? 'forest-student-score-negative' : ''}`}>{formatStudentCardPoints(score)}</p>
+      <div className={`forest-growth-plant forest-growth-stage-${growthStage}`} aria-label={`成長階段：${growthStageLabel[growthStage]}`} title={`成長階段：${growthStageLabel[growthStage]}`}><span className="forest-growth-soil" /><span className="forest-growth-stem" /><span className="forest-growth-leaf forest-growth-leaf-left" /><span className="forest-growth-leaf forest-growth-leaf-right" /><span className="forest-growth-canopy" /></div>
+    </article>
+  );
+}
+
 // --- 學生唯讀查分儀表板 ---
 function StudentDashboard({ classId, onBack, onShowRewardGuide }) {
   const [students, setStudents] = useState([]);
@@ -721,6 +735,7 @@ function StudentDashboard({ classId, onBack, onShowRewardGuide }) {
 
   const pointDivisor = Number(classInfo?.groupPointDivisor) || 1;
   const includeGroupPointsInIndividualTotal = classInfo?.includeGroupPointsInIndividualTotal !== false;
+  const growthThresholds = normalizeGrowthThresholds(classInfo?.growthThresholds);
   const displayedStudents = useMemo(() => students.map(student => ({
     ...student,
     totalPoints: totalPointsFor(student, groupPoints, pointDivisor, includeGroupPointsInIndividualTotal)
@@ -796,30 +811,30 @@ function StudentDashboard({ classId, onBack, onShowRewardGuide }) {
           </button>
         </header>
 
-        {/* Top 9 榮譽榜 (單列顯示，無座號，前三名金銀銅配色) */}
+        {/* 前 9 名積分排名：名次置於左上圓圈，姓名與分數放大置中。 */}
         <div className="forest-honor-section forest-student-honor mb-8 w-full mx-auto">
           <h3 className="forest-honor-heading text-sm font-bold text-slate-500 uppercase mb-3 flex items-center justify-center gap-2">
-            <Crown className="w-4 h-4 text-yellow-500" /> 榮譽榜
+            <Crown className="w-4 h-4 text-yellow-500" /> 積分排名
           </h3>
-          <div className="grid grid-cols-3 sm:grid-cols-9 gap-1.5">
+          <div className="grid grid-cols-3 sm:grid-cols-5 lg:grid-cols-9 gap-2">
             {topStudents.map((s, index) => (
               <div 
                 key={s.id} 
-                className={`forest-honor-card relative p-1.5 rounded-lg border shadow-sm flex flex-col items-center justify-center text-center overflow-hidden h-20
+                className={`forest-honor-card relative flex h-32 sm:h-36 flex-col items-center justify-center overflow-hidden rounded-lg border px-2 pb-3 pt-8 text-center shadow-sm
                   ${index === 0 ? 'bg-gradient-to-br from-yellow-50 to-white border-yellow-200 ring-1 ring-yellow-200' : 
                     index === 1 ? 'bg-gradient-to-br from-slate-50 to-white border-slate-200' : 
                     index === 2 ? 'bg-gradient-to-br from-orange-50 to-white border-orange-200' : 'bg-white border-slate-100'}`}
               >
-                <div className={`absolute top-0 left-0 px-1.5 py-0.5 text-[9px] font-bold rounded-br z-10 leading-none
+                <div className={`absolute left-2 top-2 z-10 flex h-7 w-7 items-center justify-center rounded-full border text-xs font-black leading-none
                   ${index === 0 ? 'bg-yellow-400 text-yellow-900' : 
                     index === 1 ? 'bg-slate-300 text-slate-700' : 
                     index === 2 ? 'bg-orange-300 text-orange-800' : 'bg-slate-100 text-slate-500'}`}>
-                  #{index + 1}
+                  {index + 1}
                 </div>
-                <div className={`mt-3 mb-0.5 font-bold text-slate-800 truncate w-full text-xs px-0.5 ${isThreeCharacterName(s.name) ? 'forest-name-three' : ''}`}>
+                <div className={`mb-1 w-full truncate px-0.5 text-xl font-black leading-tight text-slate-800 sm:text-2xl ${isThreeCharacterName(s.name) ? 'forest-name-three' : ''}`}>
                   {s.name}
                 </div>
-                <div className={`text-base font-black leading-none ${s.totalPoints >= 0 ? 'text-indigo-600' : 'text-red-500'}`}>
+                <div className={`text-lg font-black leading-none sm:text-xl ${s.totalPoints >= 0 ? 'text-indigo-600' : 'text-red-500'}`}>
                   {formatPoints(s.totalPoints)}
                 </div>
               </div>
@@ -827,41 +842,16 @@ function StudentDashboard({ classId, onBack, onShowRewardGuide }) {
           </div>
         </div>
 
-        {/* 全班成績一覽表 */}
-        <div className="forest-student-table bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
-          <div className="p-4 bg-slate-50 border-b border-slate-200 flex justify-between items-center">
-            <h3 className="font-bold text-slate-700 flex items-center gap-2">
-              <List className="w-4 h-4" /> 所有成績
-            </h3>
-            <span className="text-xs text-slate-400">即時同步中</span>
+        {/* 全班成長學生卡：同教師端卡片呈現，但學生端只讀。 */}
+        <section className="forest-student-grid" aria-label="全班學生積分卡">
+          <div className="mb-3 flex items-center justify-between gap-3 px-1">
+            <h3 className="font-bold text-slate-700 flex items-center gap-2"><Sprout className="w-4 h-4 text-emerald-600" /> 全班成長卡</h3>
+            <span className="text-xs text-slate-500">即時同步中</span>
           </div>
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm text-left">
-              <thead className="text-xs text-slate-500 uppercase bg-slate-100">
-                <tr>
-                  <th className="px-4 py-3 w-16">座號</th>
-                  <th className="px-4 py-3">姓名</th>
-                  <th className="px-4 py-3 text-right">點數</th>
-                  <th className="px-4 py-3 text-right hidden sm:table-cell">最新紀錄</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100">
-                {displayedStudents.map((s) => (
-                  <tr key={s.id} className="hover:bg-slate-50 transition">
-                    <td className="px-4 py-3 font-mono text-slate-500">{s.studentNumber || '-'}</td>
-                    <td className="px-4 py-3 font-medium text-slate-900">{s.name}</td>
-                    <td className={`px-4 py-3 text-right font-bold text-lg ${s.totalPoints < 0 ? 'text-red-500' : 'text-indigo-600'}`}>
-                      {formatPoints(s.totalPoints)}
-                    </td>
-                    <td className="px-4 py-3 text-right text-slate-400 text-xs hidden sm:table-cell">
-                      {s.lastReason || '-'}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+          <div className="grid grid-cols-3 gap-2 sm:grid-cols-5 lg:grid-cols-7 xl:grid-cols-9">
+            {displayedStudents.map(student => <StudentReadOnlyCard key={student.id} student={student} growthThresholds={growthThresholds} />)}
           </div>
-        </div>
+        </section>
       </div>
     </div>
   );
