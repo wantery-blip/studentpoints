@@ -1220,12 +1220,14 @@ function Dashboard({ user, teacherId, onLogout }) {
     };
   }, [showAddModal, showBatchActionModal, showStatsModal, showSettingsModal]);
   
-  // 新增學生表單狀態
+  // 學生管理視窗：單筆新增、批次新增、名單編輯。
   const [addTab, setAddTab] = useState('single');
   const [newStudentName, setNewStudentName] = useState('');
   const [newStudentNum, setNewStudentNum] = useState('');
   const [newStudentGender, setNewStudentGender] = useState('');
   const [batchInput, setBatchInput] = useState('');
+  const [managedStudentEdits, setManagedStudentEdits] = useState({});
+  const [savingManagedStudents, setSavingManagedStudents] = useState(false);
 
   const selectedClass = useMemo(
     () => classes.find(c => c.id === selectedClassId), [classes, selectedClassId]
@@ -1740,6 +1742,85 @@ function Dashboard({ user, teacherId, onLogout }) {
     }
   };
 
+  const beginStudentManagement = () => {
+    setManagedStudentEdits(Object.fromEntries(students.map(student => [student.id, {
+      studentNumber: student.studentNumber || '',
+      name: student.name || '',
+      gender: normalizeGender(student.gender)
+    }])));
+    setAddTab('single');
+    setShowAddModal(true);
+  };
+
+  const beginManagedStudentEdit = () => {
+    setManagedStudentEdits(Object.fromEntries(students.map(student => [student.id, {
+      studentNumber: student.studentNumber || '',
+      name: student.name || '',
+      gender: normalizeGender(student.gender)
+    }])));
+    setAddTab('edit');
+  };
+
+  const changeManagedStudent = (student, field, value) => {
+    setManagedStudentEdits(current => ({
+      ...current,
+      [student.id]: {
+        studentNumber: student.studentNumber || '',
+        name: student.name || '',
+        gender: normalizeGender(student.gender),
+        ...(current[student.id] || {}),
+        [field]: value
+      }
+    }));
+  };
+
+  const saveManagedStudents = async () => {
+    const prepared = students.map(student => {
+      const edit = managedStudentEdits[student.id] || student;
+      return {
+        id: student.id,
+        name: String(edit.name || '').trim(),
+        studentNumber: String(edit.studentNumber || '').trim(),
+        gender: normalizeGender(edit.gender),
+        unchanged: String(edit.name || '').trim() === (student.name || '') &&
+          String(edit.studentNumber || '').trim() === (student.studentNumber || '') &&
+          normalizeGender(edit.gender) === normalizeGender(student.gender)
+      };
+    });
+    const missingName = prepared.find(student => !student.name);
+    if (missingName) {
+      notify('姓名不可留白，請補齊後再儲存。', 'error');
+      return;
+    }
+    const changed = prepared.filter(student => !student.unchanged);
+    if (!changed.length) {
+      notify('目前沒有需要儲存的變更。', 'info');
+      return;
+    }
+
+    setSavingManagedStudents(true);
+    try {
+      for (let start = 0; start < changed.length; start += MAX_BATCH_WRITES) {
+        const batch = writeBatch(db);
+        changed.slice(start, start + MAX_BATCH_WRITES).forEach(student => {
+          batch.update(doc(db, 'artifacts', appId, 'public', 'data', 'student_points', student.id), {
+            name: student.name,
+            studentNumber: student.studentNumber,
+            gender: student.gender
+          });
+        });
+        await batch.commit();
+      }
+      notify(`已儲存 ${changed.length} 位學生的資料。`);
+    } catch (err) {
+      console.error(err);
+      if (reportQuotaError(err)) return;
+      notify('儲存學生資料失敗，請稍後再試。', 'error');
+    } finally {
+      setSavingManagedStudents(false);
+    }
+  };
+
   const updatePoints = useCallback(async (student, change, reason) => {
     try {
       const finalReason = reason || (change > 0 ? '加分' : '扣分');
@@ -2010,9 +2091,9 @@ function Dashboard({ user, teacherId, onLogout }) {
                 <Award className="w-4 h-4" />
                 <span>抽獎卡</span>
               </button>
-              <button onClick={() => setShowAddModal(true)} className="flex items-center gap-2 bg-indigo-600 text-white px-3 py-2 rounded-lg hover:bg-indigo-700 transition shadow-md text-sm font-medium">
+              <button onClick={beginStudentManagement} className="flex items-center gap-2 bg-indigo-600 text-white px-3 py-2 rounded-lg hover:bg-indigo-700 transition shadow-md text-sm font-medium">
                 <UserPlus className="w-4 h-4" />
-                <span>學生</span>
+                <span>學生管理</span>
               </button>
             </>
           )}
@@ -2192,13 +2273,13 @@ function Dashboard({ user, teacherId, onLogout }) {
         </div>
       )}
 
-      {/* 3. 新增學生視窗 (單筆 / 批次) */}
+      {/* 3. 學生管理視窗（單筆新增／批次新增／名單編輯） */}
       {showAddModal && (
         <div className="forest-modal-overlay fixed inset-0 flex items-center justify-center p-4 z-[110] backdrop-blur-sm">
-          <div className="forest-modal bg-white rounded-xl shadow-2xl w-full max-w-sm overflow-hidden animate-fade-in-up">
+          <div className={`forest-modal bg-white rounded-xl shadow-2xl w-full ${addTab === 'edit' ? 'max-w-3xl' : 'max-w-sm'} overflow-hidden animate-fade-in-up`}>
             <div className="forest-modal-titlebar bg-indigo-600 p-4 flex justify-between items-center">
               <h3 className="text-white font-bold flex items-center gap-2">
-                <UserPlus className="w-5 h-5" /> 新增學生 ({selectedClass?.name})
+                <UserPlus className="w-5 h-5" /> 學生管理 ({selectedClass?.name})
               </h3>
               <button onClick={() => setShowAddModal(false)} className="text-white/80 hover:text-white">
                 <X className="w-5 h-5" />
@@ -2217,6 +2298,12 @@ function Dashboard({ user, teacherId, onLogout }) {
                 className={`flex-1 py-3 text-sm font-medium transition ${addTab === 'batch' ? 'text-indigo-600 border-b-2 border-indigo-600 bg-indigo-50/50' : 'text-slate-500 hover:text-slate-700 hover:bg-slate-50'}`}
               >
                 批次貼上
+              </button>
+              <button
+                onClick={beginManagedStudentEdit}
+                className={`flex-1 py-3 text-sm font-medium transition ${addTab === 'edit' ? 'text-indigo-600 border-b-2 border-indigo-600 bg-indigo-50/50' : 'text-slate-500 hover:text-slate-700 hover:bg-slate-50'}`}
+              >
+                編輯資料
               </button>
             </div>
 
@@ -2271,7 +2358,7 @@ function Dashboard({ user, teacherId, onLogout }) {
                     </button>
                   </div>
                 </form>
-              ) : (
+              ) : addTab === 'batch' ? (
                 <form onSubmit={handleBatchAddStudent}>
                   <div className="space-y-3">
                     <div className="bg-blue-50 p-3 rounded-lg border border-blue-100 text-xs text-blue-700">
@@ -2294,6 +2381,38 @@ function Dashboard({ user, teacherId, onLogout }) {
                     <button type="submit" className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 shadow-md flex items-center gap-2"><Users className="w-4 h-4" /> 批次建立</button>
                   </div>
                 </form>
+              ) : (
+                <div className="space-y-4">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <p className="text-sm text-slate-600">可一次修改所有學生的座號、姓名與性別，再統一儲存。</p>
+                    <span className="text-xs font-medium text-slate-500">共 {students.length} 位學生</span>
+                  </div>
+                  {students.length === 0 ? (
+                    <div className="rounded-lg border border-dashed border-slate-300 bg-slate-50 py-10 text-center text-sm text-slate-500">目前班級尚無學生資料。</div>
+                  ) : (
+                    <div className="max-h-[420px] overflow-y-auto rounded-lg border border-slate-200">
+                      <div className="grid grid-cols-[5rem_minmax(0,1fr)_7rem] gap-2 border-b border-slate-200 bg-slate-50 px-3 py-2 text-xs font-bold text-slate-500">
+                        <span>座號</span><span>姓名</span><span>性別</span>
+                      </div>
+                      {students.map(student => {
+                        const edit = managedStudentEdits[student.id] || {
+                          studentNumber: student.studentNumber || '', name: student.name || '', gender: normalizeGender(student.gender)
+                        };
+                        return (
+                          <div key={student.id} className="grid grid-cols-[5rem_minmax(0,1fr)_7rem] items-center gap-2 border-b border-slate-100 px-3 py-2 last:border-b-0">
+                            <input aria-label={`${student.name} 的座號`} value={edit.studentNumber} onChange={event => changeManagedStudent(student, 'studentNumber', event.target.value)} className="min-w-0 rounded-md border border-slate-300 px-2 py-1.5 text-sm focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 outline-none" placeholder="座號" />
+                            <input aria-label={`${student.name} 的姓名`} value={edit.name} onChange={event => changeManagedStudent(student, 'name', event.target.value)} className="min-w-0 rounded-md border border-slate-300 px-2 py-1.5 text-sm focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 outline-none" placeholder="姓名" />
+                            <select aria-label={`${student.name} 的性別`} value={edit.gender} onChange={event => changeManagedStudent(student, 'gender', event.target.value)} className="min-w-0 rounded-md border border-slate-300 bg-white px-2 py-1.5 text-sm focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 outline-none"><option value="">未指定</option><option value="male">男生</option><option value="female">女生</option></select>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                  <div className="flex justify-end gap-3 pt-1">
+                    <button type="button" onClick={() => setShowAddModal(false)} className="px-4 py-2 text-slate-600 hover:bg-slate-100 rounded-lg transition">取消</button>
+                    <button type="button" disabled={savingManagedStudents || students.length === 0} onClick={saveManagedStudents} className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition shadow-md disabled:cursor-not-allowed disabled:bg-slate-400">{savingManagedStudents ? '儲存中…' : '儲存變更'}</button>
+                  </div>
+                </div>
               )}
             </div>
           </div>
