@@ -2851,6 +2851,8 @@ function BatchActionModal({ onClose, onConfirm, presets, students }) {
     current.includes(id) ? current.filter(item => item !== id) : [...current, id]
   );
 
+  const selectAllStudents = () => setSelectedIds(students.map(student => student.id));
+
   return (
     <div className="forest-modal-overlay fixed inset-0 flex items-center justify-center p-4 z-[110] backdrop-blur-sm">
       <div className="forest-modal bg-white rounded-xl shadow-2xl w-full max-w-md overflow-hidden animate-fade-in-up">
@@ -2870,7 +2872,13 @@ function BatchActionModal({ onClose, onConfirm, presets, students }) {
               <button type="button" onClick={() => setTargetMode('select')} className={`rounded-lg border px-2 py-2 text-sm font-bold ${targetMode === 'select' ? 'bg-pink-600 text-white border-pink-600' : 'bg-white text-slate-600 border-slate-200'}`}>點選座號<br/><span className="text-xs font-normal">{selectedIds.length} 人</span></button>
             </div>
             {targetMode === 'numbers' && <div className="mt-3"><label className="block text-xs text-slate-500 mb-1">座號可用逗號、空格或換行分隔</label><input value={seatInput} onChange={e => setSeatInput(e.target.value)} className="w-full px-3 py-2 border rounded-lg font-mono focus:ring-2 focus:ring-pink-500 outline-none" placeholder="例如：1,2,3,5,7" /></div>}
-            {targetMode === 'select' && <div className="mt-3 max-h-40 overflow-y-auto grid grid-cols-4 gap-2 rounded-lg border p-2 bg-slate-50">{students.map(student => { const chosen = selectedIds.includes(student.id); return <button key={student.id} type="button" onClick={() => toggleStudent(student.id)} className={`rounded border px-1 py-2 text-xs ${chosen ? 'bg-pink-600 border-pink-600 text-white' : 'bg-white border-slate-200 text-slate-700 hover:border-pink-300'}`} title={student.name}><span className="block font-bold">{student.studentNumber || '未設'}</span><span className="block truncate">{student.name}</span></button>; })}</div>}
+            {targetMode === 'select' && <div className="mt-3 space-y-2">
+              <div className="flex items-center justify-between gap-2">
+                <p className="text-xs text-slate-500">可先全選，再點選座號取消個別學生。</p>
+                <button type="button" onClick={selectAllStudents} disabled={students.length === 0 || selectedIds.length === students.length} className="shrink-0 rounded-md border border-pink-200 bg-white px-2.5 py-1.5 text-xs font-bold text-pink-700 transition hover:bg-pink-50 disabled:cursor-not-allowed disabled:opacity-50">全選全班</button>
+              </div>
+              <div className="max-h-40 overflow-y-auto grid grid-cols-4 gap-2 rounded-lg border p-2 bg-slate-50">{students.map(student => { const chosen = selectedIds.includes(student.id); return <button key={student.id} type="button" onClick={() => toggleStudent(student.id)} className={`rounded border px-1 py-2 text-xs ${chosen ? 'bg-pink-600 border-pink-600 text-white' : 'bg-white border-slate-200 text-slate-700 hover:border-pink-300'}`} title={student.name} aria-pressed={chosen}><span className="block font-bold">{student.studentNumber || '未設'}</span><span className="block truncate">{student.name}</span></button>; })}</div>
+            </div>}
           </div>
 
           <div className="mb-5">
