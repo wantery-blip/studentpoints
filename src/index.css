@@ -95,11 +95,12 @@ body {
 .forest-student-login-card [class*="border-emerald"] { border-color: var(--forest-sage) !important; }
 .forest-student-content { max-width: 72rem; }
 .forest-student-dashboard .forest-class-header {
-  background:
-    radial-gradient(circle at 88% 0, rgba(154,184,137,.19), transparent 13rem),
-    rgba(255,255,252,.94) !important;
+  background: rgba(239,228,194,.48) !important;
 }
-.forest-student-honor { padding: 1rem; }
+.forest-student-honor {
+  padding: 1rem;
+  background: rgba(239,228,194,.48) !important;
+}
 .forest-student-honor .forest-honor-heading {
   color: var(--forest-moss-deep) !important;
   font-size: clamp(1.25rem, 2vw, 1.5rem) !important;
