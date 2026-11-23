@@ -13,7 +13,7 @@ const CLASS_FIELDS = [
   ['班級名稱'], ['班級代碼'], ['Firestore 班級 ID'], ['分組數量'], ['教師 ID'], ['最後備份時間']
 ];
 const STUDENT_HEADERS = [
-  '座號', '學生姓名', '目前積分', '小組', '最後加扣分原因', '最後更新時間', '學生文件 ID'
+  '座號', '學生姓名', '性別', '目前積分', '小組', '最後加扣分原因', '最後更新時間', '學生文件 ID'
 ];
 const LOG_HEADERS = [
   '操作時間', '類型', '班級', '座號', '學生姓名',
@@ -111,6 +111,7 @@ function writeSnapshot_(sheet, payload) {
   const rows = students.map(student => [
     student.number || '',
     student.name || '',
+    student.gender === 'male' ? '男生' : student.gender === 'female' ? '女生' : '',
     Number(student.points) || 0,
     student.groupId === undefined || student.groupId === null ? '' : student.groupId,
     student.lastReason || '',

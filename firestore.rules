@@ -183,13 +183,16 @@ service cloud.firestore {
           request.resource.data.studentNumber is string &&
           request.resource.data.points is number &&
           request.resource.data.keys().hasOnly([
-            'name','studentNumber','points','classId','groupId','createdAt','lastReason','lastUpdate'
-          ]);
+            'name','studentNumber','gender','points','classId','groupId','createdAt','lastReason','lastUpdate'
+          ]) && request.resource.data.gender in ['male', 'female', ''];
         allow update: if ownsClass(resource.data.classId) &&
           request.resource.data.classId == resource.data.classId &&
           request.resource.data.diff(resource.data).affectedKeys().hasOnly([
-            'name','studentNumber','points','groupId','lastReason','lastUpdate'
-          ]) && request.resource.data.points is number;
+            'name','studentNumber','gender','points','groupId','lastReason','lastUpdate'
+          ]) && request.resource.data.points is number &&
+          // Existing students can remain without this field until their next edit.
+          (!request.resource.data.keys().hasAny(['gender']) ||
+            request.resource.data.gender in ['male', 'female', '']);
         allow delete: if ownsClass(resource.data.classId);
       }
 

@@ -247,19 +247,26 @@ const normalizeSeatNumber = (value) => {
   return /^\d+$/.test(trimmed) ? String(Number(trimmed)) : trimmed;
 };
 
+const normalizeGender = (value) => {
+  const normalized = String(value ?? '').trim().toLowerCase();
+  if (normalized === '男' || normalized === 'male' || normalized === 'm') return 'male';
+  if (normalized === '女' || normalized === 'female' || normalized === 'f') return 'female';
+  return '';
+};
+
 const parseBatchStudents = (input) => input
   .split(/\r?\n/)
   .map((rawLine, index) => {
     const line = rawLine.trim();
     if (!line) return null;
 
-    // 支援「01 王小明」、「01,王小明」、「01. 王小明」與僅輸入姓名。
-    const numbered = line.match(/^(\d+)\s*[,.、，\t ]+(.+)$/);
+    // 支援「01 王小明 男」、「01,王小明,女」、「01. 王小明」與僅輸入姓名。
+    const numbered = line.match(/^(\d+)\s*[,.、，\t ]+(.+?)(?:\s*[,.、，\t ]+(男|女|male|female|m|f))?$/i);
     if (numbered) {
-      return { studentNumber: numbered[1], name: numbered[2].trim(), line: index + 1 };
+      return { studentNumber: numbered[1], name: numbered[2].trim(), gender: normalizeGender(numbered[3]), line: index + 1 };
     }
-    if (/^\d+$/.test(line)) return { studentNumber: '', name: '', line: index + 1 };
-    return { studentNumber: '', name: line, line: index + 1 };
+    if (/^\d+$/.test(line)) return { studentNumber: '', name: '', gender: '', line: index + 1 };
+    return { studentNumber: '', name: line, gender: '', line: index + 1 };
   })
   .filter(Boolean);
 
@@ -1184,6 +1191,7 @@ function Dashboard({ user, teacherId, onLogout }) {
   const [addTab, setAddTab] = useState('single');
   const [newStudentName, setNewStudentName] = useState('');
   const [newStudentNum, setNewStudentNum] = useState('');
+  const [newStudentGender, setNewStudentGender] = useState('');
   const [batchInput, setBatchInput] = useState('');
 
   const selectedClass = useMemo(
@@ -1402,6 +1410,7 @@ function Dashboard({ user, teacherId, onLogout }) {
         id: s.id,
         number: s.studentNumber,
         name: s.name,
+        gender: s.gender || '',
             points: totalPointsFor(s, groupPoints, groupPointDivisor, includeGroupPointsInIndividualTotal),
             individualPoints: s.points,
         groupId: s.groupId ?? null,
@@ -1604,6 +1613,7 @@ function Dashboard({ user, teacherId, onLogout }) {
             batch.set(newDocRef, {
               name: name,
               studentNumber: num,
+              gender: '',
               points: points,
               classId: selectedClassId,
               createdAt: serverTimestamp(),
@@ -1633,6 +1643,7 @@ function Dashboard({ user, teacherId, onLogout }) {
       await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'student_points'), {
         name: newStudentName.trim(),
         studentNumber: newStudentNum.trim(),
+        gender: newStudentGender,
         points: 0,
         classId: selectedClassId,
         createdAt: serverTimestamp(),
@@ -1640,6 +1651,7 @@ function Dashboard({ user, teacherId, onLogout }) {
       });
       setNewStudentName('');
       setNewStudentNum('');
+      setNewStudentGender('');
       setShowAddModal(false);
       notify(`已新增學生：${newStudentName.trim()}`);
     } catch (err) { 
@@ -1666,11 +1678,12 @@ function Dashboard({ user, teacherId, onLogout }) {
       for (let start = 0; start < validRows.length; start += MAX_BATCH_WRITES) {
         const batch = writeBatch(db);
         const chunk = validRows.slice(start, start + MAX_BATCH_WRITES);
-        chunk.forEach(({ name, studentNumber }) => {
+        chunk.forEach(({ name, studentNumber, gender }) => {
           const newRef = doc(collection(db, 'artifacts', appId, 'public', 'data', 'student_points'));
           batch.set(newRef, {
             name,
             studentNumber,
+            gender,
             points: 0,
             classId: selectedClassId,
             createdAt: serverTimestamp(),
@@ -1779,7 +1792,7 @@ function Dashboard({ user, teacherId, onLogout }) {
     );
   }, [askConfirm, notify]);
 
-  const updateStudentDetails = useCallback(async (studentId, name, studentNumber) => {
+  const updateStudentDetails = useCallback(async (studentId, name, studentNumber, gender) => {
     const nextName = name.trim();
     const nextNumber = studentNumber.trim();
     if (!nextName) {
@@ -1788,7 +1801,7 @@ function Dashboard({ user, teacherId, onLogout }) {
     }
     try {
       await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'student_points', studentId), {
-        name: nextName, studentNumber: nextNumber
+        name: nextName, studentNumber: nextNumber, gender: normalizeGender(gender)
       });
       notify('學生資料已更新');
       return true;
@@ -2200,6 +2213,14 @@ function Dashboard({ user, teacherId, onLogout }) {
                         autoFocus
                       />
                     </div>
+                    <div>
+                      <label className="block text-sm font-medium text-slate-700 mb-1">性別</label>
+                      <select value={newStudentGender} onChange={(e) => setNewStudentGender(e.target.value)} className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none bg-white">
+                        <option value="">未指定</option>
+                        <option value="male">男生</option>
+                        <option value="female">女生</option>
+                      </select>
+                    </div>
                   </div>
                   <div className="flex justify-end gap-3 mt-8">
                     <button
@@ -2224,14 +2245,14 @@ function Dashboard({ user, teacherId, onLogout }) {
                       <p className="font-bold mb-1">使用說明：</p>
                       <ul className="list-disc pl-4 space-y-1">
                         <li>每行輸入一位學生</li>
-                        <li>格式：座號 姓名 或 僅姓名</li>
+                        <li>格式：座號 姓名 性別（性別可填男／女），或座號 姓名／僅姓名</li>
                       </ul>
                     </div>
                     <textarea
                       value={batchInput}
                       onChange={(e) => setBatchInput(e.target.value)}
                       className="w-full h-40 px-3 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none text-sm font-mono leading-relaxed"
-                      placeholder={`01 王小明\n02 李大華\n...`}
+                      placeholder={`01 王小明 男\n02 李大華 女\n03 陳小安\n...`}
                       autoFocus
                     />
                   </div>
@@ -2852,6 +2873,7 @@ function BatchActionModal({ onClose, onConfirm, presets, students }) {
   );
 
   const selectAllStudents = () => setSelectedIds(students.map(student => student.id));
+  const selectStudentsByGender = (gender) => setSelectedIds(students.filter(student => student.gender === gender).map(student => student.id));
 
   return (
     <div className="forest-modal-overlay fixed inset-0 flex items-center justify-center p-4 z-[110] backdrop-blur-sm">
@@ -2875,7 +2897,7 @@ function BatchActionModal({ onClose, onConfirm, presets, students }) {
             {targetMode === 'select' && <div className="mt-3 space-y-2">
               <div className="flex items-center justify-between gap-2">
                 <p className="text-xs text-slate-500">可先全選，再點選座號取消個別學生。</p>
-                <button type="button" onClick={selectAllStudents} disabled={students.length === 0 || selectedIds.length === students.length} className="shrink-0 rounded-md border border-pink-200 bg-white px-2.5 py-1.5 text-xs font-bold text-pink-700 transition hover:bg-pink-50 disabled:cursor-not-allowed disabled:opacity-50">全選全班</button>
+                <div className="flex shrink-0 flex-wrap justify-end gap-1"><button type="button" onClick={selectAllStudents} disabled={students.length === 0 || selectedIds.length === students.length} className="rounded-md border border-pink-200 bg-white px-2.5 py-1.5 text-xs font-bold text-pink-700 transition hover:bg-pink-50 disabled:cursor-not-allowed disabled:opacity-50">全選全班</button><button type="button" onClick={() => selectStudentsByGender('male')} disabled={!students.some(student => student.gender === 'male')} className="rounded-md border border-sky-200 bg-white px-2.5 py-1.5 text-xs font-bold text-sky-700 transition hover:bg-sky-50 disabled:cursor-not-allowed disabled:opacity-50">全部男生</button><button type="button" onClick={() => selectStudentsByGender('female')} disabled={!students.some(student => student.gender === 'female')} className="rounded-md border border-rose-200 bg-white px-2.5 py-1.5 text-xs font-bold text-rose-700 transition hover:bg-rose-50 disabled:cursor-not-allowed disabled:opacity-50">全部女生</button></div>
               </div>
               <div className="max-h-40 overflow-y-auto grid grid-cols-4 gap-2 rounded-lg border p-2 bg-slate-50">{students.map(student => { const chosen = selectedIds.includes(student.id); return <button key={student.id} type="button" onClick={() => toggleStudent(student.id)} className={`rounded border px-1 py-2 text-xs ${chosen ? 'bg-pink-600 border-pink-600 text-white' : 'bg-white border-slate-200 text-slate-700 hover:border-pink-300'}`} title={student.name} aria-pressed={chosen}><span className="block font-bold">{student.studentNumber || '未設'}</span><span className="block truncate">{student.name}</span></button>; })}</div>
             </div>}
@@ -3129,6 +3151,7 @@ function SettingsModal({ onClose, classId, teacherUid, currentEmail, currentBack
   const [editingStudentId, setEditingStudentId] = useState<string | null>(null);
   const [editingStudentName, setEditingStudentName] = useState('');
   const [editingStudentNumber, setEditingStudentNumber] = useState('');
+  const [editingStudentGender, setEditingStudentGender] = useState('');
   const [savingStudent, setSavingStudent] = useState(false);
   const [drawCards, setDrawCards] = useState(() => withCardImages(DRAW_CARD_DEFAULTS));
   const [drawCardsLoading, setDrawCardsLoading] = useState(true);
@@ -3354,12 +3377,13 @@ function SettingsModal({ onClose, classId, teacherUid, currentEmail, currentBack
     setEditingStudentId(student.id);
     setEditingStudentName(student.name || '');
     setEditingStudentNumber(student.studentNumber || '');
+    setEditingStudentGender(normalizeGender(student.gender));
   };
 
   const saveStudent = async (student) => {
     setSavingStudent(true);
     try {
-      const saved = await onUpdateStudent?.(student.id, editingStudentName, editingStudentNumber);
+      const saved = await onUpdateStudent?.(student.id, editingStudentName, editingStudentNumber, editingStudentGender);
       if (saved) setEditingStudentId(null);
     } finally { setSavingStudent(false); }
   };
@@ -3675,13 +3699,13 @@ function SettingsModal({ onClose, classId, teacherUid, currentEmail, currentBack
             </div>
           )}
 
-          {/* 5. 刪除名單：目前選取班級的學生可改姓名、改座號或刪除。 */}
+          {/* 5. 名單管理：目前選取班級的學生可改姓名、座號、性別或刪除。 */}
           {activeTab === 'roster' && (
             <div className="space-y-3 max-h-[360px] overflow-y-auto">
-              <p className="text-xs text-slate-500">目前班級：<span className="font-bold text-slate-700">{selectedClassName || '未選擇'}</span>。可在此修改姓名、座號，或刪除學生資料。</p>
+              <p className="text-xs text-slate-500">目前班級：<span className="font-bold text-slate-700">{selectedClassName || '未選擇'}</span>。可在此修改姓名、座號、性別，或刪除學生資料。</p>
               {students.length === 0 ? <p className="py-8 text-center text-sm text-slate-400">目前班級尚無學生名單</p> : students.map(student => (
                 <div key={student.id} className="rounded-lg border border-slate-200 bg-slate-50 p-3">
-                  {editingStudentId === student.id ? <div className="space-y-2"><label className="text-xs text-slate-500">座號</label><input value={editingStudentNumber} onChange={event => setEditingStudentNumber(event.target.value)} className="w-full px-2 py-1.5 border rounded bg-white" placeholder="座號" /><label className="text-xs text-slate-500">姓名</label><input value={editingStudentName} onChange={event => setEditingStudentName(event.target.value)} className="w-full px-2 py-1.5 border rounded bg-white" placeholder="姓名" /><div className="flex justify-end gap-2 pt-1"><button onClick={() => setEditingStudentId(null)} className="px-3 py-1.5 text-xs text-slate-600">取消</button><button disabled={savingStudent} onClick={() => saveStudent(student)} className="px-3 py-1.5 text-xs font-bold text-white bg-indigo-600 rounded disabled:opacity-50">{savingStudent ? '儲存中…' : '儲存'}</button></div></div> : <div className="flex items-center gap-2"><div className="min-w-0 flex-1"><p className="font-bold text-slate-800 truncate">{student.studentNumber || '未編號'}　{student.name}</p><p className="text-xs text-slate-500 mt-1">目前總分：{formatPoints(student.totalPoints ?? student.points)}</p></div><button onClick={() => beginStudentEdit(student)} className="p-2 rounded text-slate-500 hover:text-indigo-700 hover:bg-indigo-50" title="修改姓名或座號"><Pencil className="w-4 h-4" /></button><button onClick={() => onDeleteStudent?.(student.id, student.name)} className="p-2 rounded text-slate-500 hover:text-red-600 hover:bg-red-50" title="刪除學生資料"><Trash2 className="w-4 h-4" /></button></div>}
+                  {editingStudentId === student.id ? <div className="space-y-2"><label className="text-xs text-slate-500">座號</label><input value={editingStudentNumber} onChange={event => setEditingStudentNumber(event.target.value)} className="w-full px-2 py-1.5 border rounded bg-white" placeholder="座號" /><label className="text-xs text-slate-500">姓名</label><input value={editingStudentName} onChange={event => setEditingStudentName(event.target.value)} className="w-full px-2 py-1.5 border rounded bg-white" placeholder="姓名" /><label className="text-xs text-slate-500">性別</label><select value={editingStudentGender} onChange={event => setEditingStudentGender(event.target.value)} className="w-full px-2 py-1.5 border rounded bg-white"><option value="">未指定</option><option value="male">男生</option><option value="female">女生</option></select><div className="flex justify-end gap-2 pt-1"><button onClick={() => setEditingStudentId(null)} className="px-3 py-1.5 text-xs text-slate-600">取消</button><button disabled={savingStudent} onClick={() => saveStudent(student)} className="px-3 py-1.5 text-xs font-bold text-white bg-indigo-600 rounded disabled:opacity-50">{savingStudent ? '儲存中…' : '儲存'}</button></div></div> : <div className="flex items-center gap-2"><div className="min-w-0 flex-1"><p className="font-bold text-slate-800 truncate">{student.studentNumber || '未編號'}　{student.name}</p><p className="text-xs text-slate-500 mt-1">性別：{student.gender === 'male' ? '男生' : student.gender === 'female' ? '女生' : '未指定'}　·　目前總分：{formatPoints(student.totalPoints ?? student.points)}</p></div><button onClick={() => beginStudentEdit(student)} className="p-2 rounded text-slate-500 hover:text-indigo-700 hover:bg-indigo-50" title="修改學生資料"><Pencil className="w-4 h-4" /></button><button onClick={() => onDeleteStudent?.(student.id, student.name)} className="p-2 rounded text-slate-500 hover:text-red-600 hover:bg-red-50" title="刪除學生資料"><Trash2 className="w-4 h-4" /></button></div>}
                 </div>
               ))}
             </div>

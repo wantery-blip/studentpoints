@@ -58,6 +58,15 @@ test('所屬教師可用 increment 更新自己班級學生積分', async () => 
   }));
 });
 
+test('教師可設定學生性別，但不可寫入未允許的值', async () => {
+  const db = teacherDb('teacher-a');
+  await assertSucceeds(updateDoc(doc(db, path('student_points', 'student-a')), { gender: 'male' }));
+  await assertFails(updateDoc(doc(db, path('student_points', 'student-a')), { gender: 'other' }));
+  await assertFails(setDoc(doc(db, path('student_points', 'student-new')), {
+    name: '新同學', studentNumber: '03', gender: 'other', points: 0, classId: 'class-a'
+  }));
+});
+
 test('其他教師不可讀寫非自己班級，也不可偽造 teacherId', async () => {
   const db = teacherDb('teacher-b');
   await assertFails(getDoc(doc(db, path('student_points', 'student-a'))));
