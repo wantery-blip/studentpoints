@@ -796,25 +796,26 @@ function StudentDashboard({ classId, onBack, onShowRewardGuide }) {
       </button>
 
       <div className="forest-student-content max-w-5xl mx-auto mt-8">
-        {/* 班級標頭 */}
-        <header className="forest-class-header bg-white p-5 rounded-xl shadow-sm mb-6 flex flex-col items-center justify-center text-center relative overflow-hidden">
+        {/* 班級標頭：班級名稱與獎勵卡入口維持同一列。 */}
+        <header className="forest-class-header bg-white p-4 sm:p-5 rounded-xl shadow-sm mb-6 flex items-center justify-between gap-3 relative overflow-hidden">
           <div className="absolute top-0 left-0 w-full h-1.5 bg-gradient-to-r from-emerald-400 to-teal-500"></div>
-          <div className="forest-title-mark bg-emerald-500 p-3 rounded-full mb-3 shadow-md mt-2">
-            <Sprout className="text-white w-8 h-8" />
+          <div className="relative z-10 flex min-w-0 items-center gap-3">
+            <div className="forest-title-mark shrink-0 bg-emerald-500 p-2.5 rounded-full shadow-md">
+              <Sprout className="text-white w-6 h-6" />
+            </div>
+            <h1 className="truncate text-xl font-bold text-slate-800 sm:text-2xl">
+              {classInfo ? classInfo.name : '班級榮譽榜'}
+            </h1>
           </div>
-          <h1 className="text-2xl font-bold text-slate-800 mb-1">
-            {classInfo ? classInfo.name : '班級榮譽榜'}
-          </h1>
-          <p className="text-slate-500 text-sm">優良點數即時查詢（唯讀模式）</p>
-          <button type="button" onClick={onShowRewardGuide} className="mt-4 inline-flex items-center gap-2 rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-2 text-sm font-bold text-emerald-700 hover:bg-emerald-100 transition">
-            <Award className="w-4 h-4" /> 查看獎勵卡說明
+          <button type="button" onClick={onShowRewardGuide} className="relative z-10 inline-flex shrink-0 items-center gap-2 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm font-bold text-emerald-700 hover:bg-emerald-100 transition sm:px-4">
+            <Award className="w-4 h-4" /> <span className="hidden sm:inline">查看獎勵卡說明</span><span className="sm:hidden">獎勵卡</span>
           </button>
         </header>
 
         {/* 前 9 名積分排名：名次置於左上圓圈，姓名與分數放大置中。 */}
         <div className="forest-honor-section forest-student-honor mb-8 w-full mx-auto">
-          <h3 className="forest-honor-heading text-sm font-bold text-slate-500 uppercase mb-3 flex items-center justify-center gap-2">
-            <Crown className="w-4 h-4 text-yellow-500" /> 積分排名
+          <h3 className="forest-honor-heading mb-3 flex items-center justify-center gap-2 text-xl font-black normal-case sm:text-2xl">
+            <Crown className="h-6 w-6 text-yellow-500 sm:h-7 sm:w-7" /> 積分排名
           </h3>
           <div className="grid grid-cols-3 sm:grid-cols-5 lg:grid-cols-9 gap-2">
             {topStudents.map((s, index) => (

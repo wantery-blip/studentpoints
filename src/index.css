@@ -100,7 +100,11 @@ body {
     rgba(255,255,252,.94) !important;
 }
 .forest-student-honor { padding: 1rem; }
-.forest-student-honor .forest-honor-heading { color: var(--forest-moss-deep) !important; }
+.forest-student-honor .forest-honor-heading {
+  color: var(--forest-moss-deep) !important;
+  font-size: clamp(1.25rem, 2vw, 1.5rem) !important;
+  letter-spacing: .05em;
+}
 .forest-student-table > div:first-child {
   background: #f3f7ef !important;
   border-color: var(--forest-line) !important;
