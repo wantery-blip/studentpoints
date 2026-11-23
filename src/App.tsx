@@ -99,6 +99,8 @@ const appId = import.meta.env.VITE_DATA_NAMESPACE || 'default-app-id';
 
 // Firestore 一個 batch 最多可寫入 500 筆。保留餘裕，避免大型班級匯入時失敗。
 const MAX_BATCH_WRITES = 450;
+// 僅保存使用者主動選擇記住的教師 Email；絕不保存密碼或 Firebase 憑證。
+const REMEMBERED_TEACHER_EMAIL_KEY = 'remembered_teacher_email';
 // 此信箱是唯一可在網站內審核教師申請的主要管理者。Firebase Auth
 // 的 email 不可被其他帳號冒用，規則亦會再次限制此權限。
 const PRIMARY_ADMIN_EMAIL = 'wantery@gmail.com';
@@ -907,8 +909,9 @@ function StudentRewardGuide({ classId, onBack }) {
 function LoginPage({ onGoToStudent }) {
   const { notify } = useUI();
   const [isRegistering, setIsRegistering] = useState(false);
-  const [inputId, setInputId] = useState('');
+  const [inputId, setInputId] = useState(() => readLocal(REMEMBERED_TEACHER_EMAIL_KEY));
   const [inputPassword, setInputPassword] = useState('');
+  const [rememberEmail, setRememberEmail] = useState(() => Boolean(readLocal(REMEMBERED_TEACHER_EMAIL_KEY)));
   const [applicantName, setApplicantName] = useState('');
   const [organization, setOrganization] = useState('');
   const [error, setError] = useState('');
@@ -948,6 +951,9 @@ function LoginPage({ onGoToStudent }) {
         }
       } else {
         await signInWithEmailAndPassword(auth, email, inputPassword);
+        // 只有成功登入後才記住帳號；密碼與 Firebase 憑證一律不寫入 localStorage。
+        if (rememberEmail) writeLocal(REMEMBERED_TEACHER_EMAIL_KEY, email);
+        else removeLocal(REMEMBERED_TEACHER_EMAIL_KEY);
       }
       setInputPassword('');
     } catch (err) {
@@ -993,6 +999,30 @@ function LoginPage({ onGoToStudent }) {
               <p className="text-xs text-slate-400 mt-1">帳號建立後需由主要管理者審核；密碼不會存入 Firestore</p>
             )}
           </div>
+
+          {!isRegistering && (
+            <div className="flex items-center justify-between gap-3">
+              <label className="inline-flex items-center gap-2 text-sm text-slate-700 cursor-pointer select-none">
+                <input
+                  type="checkbox"
+                  checked={rememberEmail}
+                  onChange={(e) => setRememberEmail(e.target.checked)}
+                  className="h-4 w-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
+                />
+                記住這台裝置的帳號
+              </label>
+              {readLocal(REMEMBERED_TEACHER_EMAIL_KEY) && (
+                <button type="button" onClick={() => {
+                  removeLocal(REMEMBERED_TEACHER_EMAIL_KEY);
+                  setInputId('');
+                  setRememberEmail(false);
+                  notify('已清除這台裝置記住的教師帳號。', 'info');
+                }} className="text-xs text-slate-500 hover:text-indigo-700 hover:underline">
+                  清除已記住帳號
+                </button>
+              )}
+            </div>
+          )}
 
           {isRegistering && (
             <>
@@ -1053,10 +1083,13 @@ function LoginPage({ onGoToStudent }) {
         <div className="mt-6 pt-6 border-t border-slate-100 text-center space-y-4">
           <button
             onClick={() => {
-              setIsRegistering(!isRegistering);
+              const nextIsRegistering = !isRegistering;
+              setIsRegistering(nextIsRegistering);
               setError('');
-              setInputId('');
+              const savedEmail = readLocal(REMEMBERED_TEACHER_EMAIL_KEY);
+              setInputId(nextIsRegistering ? '' : savedEmail);
               setInputPassword('');
+              setRememberEmail(nextIsRegistering ? false : Boolean(savedEmail));
             }}
             className="text-indigo-600 hover:text-indigo-800 font-medium text-sm hover:underline transition block w-full"
           >
