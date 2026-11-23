@@ -324,6 +324,15 @@ body {
   line-height: 1;
   text-align: center;
 }
+.forest-student-score > span {
+  display: block;
+  white-space: nowrap;
+}
+.forest-student-score > span + span {
+  margin-top: .2rem;
+  font-size: .8em;
+  opacity: .9;
+}
 .forest-student-score-negative { color: var(--forest-danger) !important; }
 .forest-growth-plant {
   position: absolute;

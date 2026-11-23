@@ -50,11 +50,23 @@ after(async () => { await testEnv.cleanup(); });
 test('所屬教師可用 increment 更新自己班級學生積分', async () => {
   const db = teacherDb('teacher-a');
   await assertSucceeds(updateDoc(doc(db, path('student_points', 'student-a')), {
-    points: increment(2), lastReason: '測試', lastUpdate: new Date()
+    points: increment(2), performancePoints: 5, lastReason: '測試', lastUpdate: new Date()
   }));
   await assertSucceeds(setDoc(doc(db, path('point_history', 'history-new')), {
     classId: 'class-a', studentId: 'student-a', teacherId: 'legacy-a',
     change: 2, reason: '測試', type: '學生加扣分', eventId: 'history-new', createdAt: serverTimestamp()
+  }));
+});
+
+test('累積表現必須是數字，且新建學生須同時保存兩種分數', async () => {
+  const db = teacherDb('teacher-a');
+  await assertSucceeds(updateDoc(doc(db, path('student_points', 'student-a')), { performancePoints: 3 }));
+  await assertFails(updateDoc(doc(db, path('student_points', 'student-a')), { performancePoints: '3' }));
+  await assertFails(setDoc(doc(db, path('student_points', 'student-without-performance')), {
+    name: '缺少累積表現', studentNumber: '04', gender: '', points: 0, classId: 'class-a'
+  }));
+  await assertSucceeds(setDoc(doc(db, path('student_points', 'student-with-performance')), {
+    name: '兩種分數都有', studentNumber: '05', gender: '', points: 0, performancePoints: 0, classId: 'class-a'
   }));
 });
 

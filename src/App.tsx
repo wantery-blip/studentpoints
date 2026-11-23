@@ -190,8 +190,14 @@ const groupContribution = (student, groupPoints, divisor, includeInPersonalTotal
   return Number(groupPoints[student.groupId] || 0) / (Number(divisor) || 1);
 };
 
-const totalPointsFor = (student, groupPoints = {}, divisor = 1, includeInPersonalTotal = true) =>
-  Number(student.points || 0) + groupContribution(student, groupPoints, divisor, includeInPersonalTotal);
+const pointValue = (value) => Number.isFinite(Number(value)) ? Number(value) : 0;
+// points 是可兌換的基礎點數；舊資料尚未建立 performancePoints 時，先以既有 points 作為累積表現的基準。
+const performanceBasePointsFor = (student) =>
+  typeof student.performancePoints === 'number' ? student.performancePoints : pointValue(student.points);
+const availablePointsFor = (student, groupPoints = {}, divisor = 1, includeInPersonalTotal = true) =>
+  pointValue(student.points) + groupContribution(student, groupPoints, divisor, includeInPersonalTotal);
+const performancePointsFor = (student, groupPoints = {}, divisor = 1, includeInPersonalTotal = true) =>
+  performanceBasePointsFor(student) + groupContribution(student, groupPoints, divisor, includeInPersonalTotal);
 
 const formatPoints = (value) => Number.isInteger(value) ? String(value) : Number(value).toFixed(2).replace(/\.00$/, '');
 const formatStudentCardPoints = (value) => {
@@ -689,13 +695,17 @@ function StudentLogin({ onJoin, onBack }) {
 
 // --- 學生唯讀成長卡：不提供加扣分操作或歷程，僅呈現班級公開積分與成長階段。 ---
 function StudentReadOnlyCard({ student, growthThresholds }) {
-  const score = student.totalPoints ?? student.points;
-  const growthStage = growthStageFor(score, growthThresholds);
+  const availableScore = student.availablePoints ?? student.totalPoints ?? student.points;
+  const performanceScore = student.performanceTotal ?? performanceBasePointsFor(student);
+  const growthStage = growthStageFor(performanceScore, growthThresholds);
   return (
     <article className="forest-student-card min-h-28 rounded-xl border p-2 shadow-sm" title={`${student.name}：${growthStageLabel[growthStage]}`}>
       <span className="forest-student-seat">{student.studentNumber || '#'}</span>
       <p className={`forest-student-name truncate ${isThreeCharacterName(student.name) ? 'forest-name-three' : ''}`}>{student.name}</p>
-      <p className={`forest-student-score ${score < 0 ? 'forest-student-score-negative' : ''}`}>{formatStudentCardPoints(score)}</p>
+      <div className={`forest-student-score ${availableScore < 0 ? 'forest-student-score-negative' : ''}`}>
+        <span>可用 {formatStudentCardPoints(availableScore)}</span>
+        <span>累積 {formatStudentCardPoints(performanceScore)}</span>
+      </div>
       <div className={`forest-growth-plant forest-growth-stage-${growthStage}`} aria-label={`成長階段：${growthStageLabel[growthStage]}`} title={`成長階段：${growthStageLabel[growthStage]}`}><span className="forest-growth-soil" /><span className="forest-growth-stem" /><span className="forest-growth-leaf forest-growth-leaf-left" /><span className="forest-growth-leaf forest-growth-leaf-right" /><span className="forest-growth-canopy" /></div>
     </article>
   );
@@ -738,7 +748,10 @@ function StudentDashboard({ classId, onBack, onShowRewardGuide }) {
   const growthThresholds = normalizeGrowthThresholds(classInfo?.growthThresholds);
   const displayedStudents = useMemo(() => students.map(student => ({
     ...student,
-    totalPoints: totalPointsFor(student, groupPoints, pointDivisor, includeGroupPointsInIndividualTotal)
+    availablePoints: availablePointsFor(student, groupPoints, pointDivisor, includeGroupPointsInIndividualTotal),
+    performanceTotal: performancePointsFor(student, groupPoints, pointDivisor, includeGroupPointsInIndividualTotal),
+    // 保留舊元件使用的欄位名稱，代表可兌換點數。
+    totalPoints: availablePointsFor(student, groupPoints, pointDivisor, includeGroupPointsInIndividualTotal)
   })), [students, groupPoints, pointDivisor, includeGroupPointsInIndividualTotal]);
 
   // 即時監聽該班級學生點數
@@ -763,9 +776,9 @@ function StudentDashboard({ classId, onBack, onShowRewardGuide }) {
     return () => unsubscribe();
   }, [classId]);
 
-  // 計算積分最高的前 8 名學生
+  // 排行榜依「累積表現」排序，兌獎不會改變名次。
   const topStudents = useMemo(() => {
-    return [...displayedStudents].sort((a, b) => b.totalPoints - a.totalPoints).slice(0, 9);
+    return [...displayedStudents].sort((a, b) => b.performanceTotal - a.performanceTotal).slice(0, 9);
   }, [displayedStudents]);
 
   if (loadError) {
@@ -815,7 +828,7 @@ function StudentDashboard({ classId, onBack, onShowRewardGuide }) {
         {/* 前 9 名積分排名：名次置於左上圓圈，姓名與分數放大置中。 */}
         <div className="forest-honor-section forest-student-honor mb-8 w-full mx-auto">
           <h3 className="forest-honor-heading mb-3 flex items-center justify-center gap-2 text-xl font-black normal-case sm:text-2xl">
-            <Crown className="h-6 w-6 text-yellow-500 sm:h-7 sm:w-7" /> 積分排名
+            <Crown className="h-6 w-6 text-yellow-500 sm:h-7 sm:w-7" /> 累積表現排名
           </h3>
           <div className="grid grid-cols-3 sm:grid-cols-5 lg:grid-cols-9 gap-2">
             {topStudents.map((s, index) => (
@@ -835,8 +848,8 @@ function StudentDashboard({ classId, onBack, onShowRewardGuide }) {
                 <div className={`mb-1 w-full truncate px-0.5 text-xl font-black leading-tight text-slate-800 sm:text-2xl ${isThreeCharacterName(s.name) ? 'forest-name-three' : ''}`}>
                   {s.name}
                 </div>
-                <div className={`text-lg font-black leading-none sm:text-xl ${s.totalPoints >= 0 ? 'text-indigo-600' : 'text-red-500'}`}>
-                  {formatPoints(s.totalPoints)}
+                <div className={`text-lg font-black leading-none sm:text-xl ${s.performanceTotal >= 0 ? 'text-indigo-600' : 'text-red-500'}`}>
+                  {formatPoints(s.performanceTotal)}
                 </div>
               </div>
             ))}
@@ -1166,6 +1179,7 @@ function Dashboard({ user, teacherId, onLogout }) {
   const [students, setStudents] = useState([]);
   const [groupPoints, setGroupPoints] = useState({});
   const [presets, setPresets] = useState([]);
+  const migratedPerformanceStudentIdsRef = useRef(new Set<string>());
   const [loading, setLoading] = useState(true);
   const [teacherEmail, setTeacherEmail] = useState('');
   const [backupUrl, setBackupUrl] = useState('');
@@ -1327,6 +1341,32 @@ function Dashboard({ user, teacherId, onLogout }) {
     return () => unsubscribe();
   }, [user, selectedClassId, notify]);
 
+  // 舊版只有 points。教師首次開啟班級時，以當下 points 建立累積表現的起點；
+  // 使用 transaction 可避免同步加扣分時寫入過時的基準值。
+  useEffect(() => {
+    if (!user || !selectedClassId || students.length === 0) return;
+    const legacyStudents = students.filter(student =>
+      typeof student.performancePoints !== 'number' && !migratedPerformanceStudentIdsRef.current.has(student.id)
+    );
+    if (!legacyStudents.length) return;
+
+    legacyStudents.forEach(student => migratedPerformanceStudentIdsRef.current.add(student.id));
+    let active = true;
+    void Promise.all(legacyStudents.map(student => runTransaction(db, async transaction => {
+      const studentRef = doc(db, 'artifacts', appId, 'public', 'data', 'student_points', student.id);
+      const current = await transaction.get(studentRef);
+      if (!current.exists() || typeof current.data().performancePoints === 'number') return;
+      transaction.update(studentRef, { performancePoints: pointValue(current.data().points) });
+    }))).then(() => {
+      if (active) notify(`已為 ${legacyStudents.length} 位既有學生建立累積表現起點。`, 'info');
+    }).catch(error => {
+      legacyStudents.forEach(student => migratedPerformanceStudentIdsRef.current.delete(student.id));
+      console.error('初始化累積表現失敗', error);
+      if (active) notify('累積表現初始化失敗，請重新整理後再試。', 'error');
+    });
+    return () => { active = false; };
+  }, [user, selectedClassId, students, notify]);
+
   useEffect(() => {
     if (!user || !selectedClassId) { setGroupPoints({}); return; }
     const groupQuery = query(
@@ -1362,10 +1402,13 @@ function Dashboard({ user, teacherId, onLogout }) {
   const growthThresholds = normalizeGrowthThresholds(selectedClass?.growthThresholds);
   const displayedStudents = useMemo(() => students.map(student => ({
     ...student,
-    totalPoints: totalPointsFor(student, groupPoints, groupPointDivisor, includeGroupPointsInIndividualTotal)
+    availablePoints: availablePointsFor(student, groupPoints, groupPointDivisor, includeGroupPointsInIndividualTotal),
+    performanceTotal: performancePointsFor(student, groupPoints, groupPointDivisor, includeGroupPointsInIndividualTotal),
+    // 保留舊元件使用的欄位名稱，代表可兌換點數。
+    totalPoints: availablePointsFor(student, groupPoints, groupPointDivisor, includeGroupPointsInIndividualTotal)
   })), [students, groupPoints, groupPointDivisor, includeGroupPointsInIndividualTotal]);
   const topStudents = useMemo(() => {
-    return [...displayedStudents].sort((a, b) => b.totalPoints - a.totalPoints).slice(0, 9);
+    return [...displayedStudents].sort((a, b) => b.performanceTotal - a.performanceTotal).slice(0, 9);
   }, [displayedStudents]);
 
   // 切換班級
@@ -1437,8 +1480,11 @@ function Dashboard({ user, teacherId, onLogout }) {
         number: s.studentNumber,
         name: s.name,
         gender: s.gender || '',
-            points: totalPointsFor(s, groupPoints, groupPointDivisor, includeGroupPointsInIndividualTotal),
-            individualPoints: s.points,
+        points: availablePointsFor(s, groupPoints, groupPointDivisor, includeGroupPointsInIndividualTotal),
+        availablePoints: availablePointsFor(s, groupPoints, groupPointDivisor, includeGroupPointsInIndividualTotal),
+        performancePoints: performancePointsFor(s, groupPoints, groupPointDivisor, includeGroupPointsInIndividualTotal),
+        individualPoints: s.points,
+        individualPerformancePoints: performanceBasePointsFor(s),
         groupId: s.groupId ?? null,
         lastReason: s.lastReason,
         lastUpdate: s.lastUpdate?.seconds
@@ -1526,7 +1572,9 @@ function Dashboard({ user, teacherId, onLogout }) {
     const sortedStudents = [...students].sort((a, b) => parseInt(a.studentNumber || 0) - parseInt(b.studentNumber || 0));
     let body = `[學生優良點數日報表] ${selectedClass?.name || ''} - ${todayStr}\n\n--------------------------------\n`;
     sortedStudents.forEach(s => {
-      body += `${s.studentNumber || '無座號'}. ${s.name}： ${formatPoints(totalPointsFor(s, groupPoints, groupPointDivisor, includeGroupPointsInIndividualTotal))} 分 (最新: ${s.lastReason || '無'})\n`;
+      const available = availablePointsFor(s, groupPoints, groupPointDivisor, includeGroupPointsInIndividualTotal);
+      const performance = performancePointsFor(s, groupPoints, groupPointDivisor, includeGroupPointsInIndividualTotal);
+      body += `${s.studentNumber || '無座號'}. ${s.name}：可兌換 ${formatPoints(available)} 分／累積表現 ${formatPoints(performance)} 分 (最新: ${s.lastReason || '無'})\n`;
     });
     body += `--------------------------------\n此郵件由學生優良點數管理系統自動生成。`;
     const subject = encodeURIComponent(`[點數報表] ${selectedClass?.name} ${todayStr}`);
@@ -1641,6 +1689,7 @@ function Dashboard({ user, teacherId, onLogout }) {
               studentNumber: num,
               gender: '',
               points: points,
+              performancePoints: points,
               classId: selectedClassId,
               createdAt: serverTimestamp(),
               lastReason: '批次匯入'
@@ -1671,6 +1720,7 @@ function Dashboard({ user, teacherId, onLogout }) {
         studentNumber: newStudentNum.trim(),
         gender: newStudentGender,
         points: 0,
+        performancePoints: 0,
         classId: selectedClassId,
         createdAt: serverTimestamp(),
         lastReason: '新建立'
@@ -1711,6 +1761,7 @@ function Dashboard({ user, teacherId, onLogout }) {
             studentNumber,
             gender,
             points: 0,
+            performancePoints: 0,
             classId: selectedClassId,
             createdAt: serverTimestamp(),
             lastReason: '新建立'
@@ -1812,25 +1863,31 @@ function Dashboard({ user, teacherId, onLogout }) {
     }
   };
 
-  const updatePoints = useCallback(async (student, change, reason) => {
+  const updatePoints = useCallback(async (student, change, reason, isRedemption = false) => {
     try {
-      const finalReason = reason || (change > 0 ? '加分' : '扣分');
+      const finalReason = reason || (isRedemption ? '兌獎' : change > 0 ? '加分' : '扣分');
       const studentRef = doc(db, 'artifacts', appId, 'public', 'data', 'student_points', student.id);
       const historyRef = doc(collection(db, 'artifacts', appId, 'public', 'data', 'point_history'));
-      const batch = writeBatch(db);
-      batch.update(studentRef, {
-        // 原版使用舊畫面的 points + change，連續點擊或多人操作可能覆蓋分數。
-        points: increment(change),
-        lastReason: finalReason,
-        lastUpdate: serverTimestamp()
+      await runTransaction(db, async transaction => {
+        const snapshot = await transaction.get(studentRef);
+        if (!snapshot.exists()) throw new Error('找不到學生資料');
+        const current = snapshot.data();
+        const availablePoints = pointValue(current.points);
+        const performancePoints = performanceBasePointsFor(current);
+        transaction.update(studentRef, {
+          // 兌獎只扣除可兌換點數；其他個人加扣分才同步影響累積表現。
+          points: availablePoints + change,
+          performancePoints: isRedemption ? performancePoints : performancePoints + change,
+          lastReason: finalReason,
+          lastUpdate: serverTimestamp()
+        });
+        transaction.set(historyRef, {
+          classId: selectedClassId, studentId: student.id, teacherId, change, reason: finalReason,
+          groupId: student.groupId ?? null, type: isRedemption ? '兌獎' : '學生加扣分', eventId: historyRef.id, createdAt: serverTimestamp()
+        });
       });
-      batch.set(historyRef, {
-        classId: selectedClassId, studentId: student.id, teacherId, change, reason: finalReason,
-        groupId: student.groupId ?? null, type: '學生加扣分', eventId: historyRef.id, createdAt: serverTimestamp()
-      });
-      await batch.commit();
       sendScoreLog([{
-        type: '學生加扣分', studentId: student.id, studentNumber: student.studentNumber || '',
+        type: isRedemption ? '兌獎' : '學生加扣分', studentId: student.id, studentNumber: student.studentNumber || '',
         studentName: student.name, change, reason: finalReason, groupId: student.groupId ?? ''
       }]);
       return true;
@@ -1857,6 +1914,10 @@ function Dashboard({ user, teacherId, onLogout }) {
           const studentRef = doc(db, 'artifacts', appId, 'public', 'data', 'student_points', student.id);
           batch.update(studentRef, {
             points: increment(points),
+            // 既有資料若尚未初始化，仍以當下 points 為基準後再加上本次分數。
+            performancePoints: typeof student.performancePoints === 'number'
+              ? increment(points)
+              : pointValue(student.points) + points,
             lastReason: finalReason,
             lastUpdate: serverTimestamp()
           });
@@ -2134,7 +2195,7 @@ function Dashboard({ user, teacherId, onLogout }) {
             '--forest-honor-bronze': `url("${honorBronzeMedalUrl}")`,
           } as React.CSSProperties}>
             <h3 className="forest-honor-heading text-sm font-bold text-slate-500 uppercase mb-3 flex items-center justify-center gap-2">
-              榮譽榜
+              累積表現榜
             </h3>
             <div className="forest-honor-list grid grid-cols-1 gap-2">
               {topStudents.length === 0 ? (
@@ -2160,8 +2221,8 @@ function Dashboard({ user, teacherId, onLogout }) {
                     <div className={`mt-3 mb-0.5 font-bold text-slate-800 truncate w-full px-0.5 ${isThreeCharacterName(s.name) ? 'forest-name-three' : ''}`} style={{ fontSize: `${0.75 * honorFontScale}rem` }}>
                       {s.name}
                     </div>
-                    <div className={`font-black leading-none ${s.totalPoints >= 0 ? 'text-indigo-600' : 'text-red-500'}`} style={{ fontSize: `${1 * honorFontScale}rem` }}>
-                      {formatPoints(s.totalPoints)}
+                    <div className={`font-black leading-none ${s.performanceTotal >= 0 ? 'text-indigo-600' : 'text-red-500'}`} style={{ fontSize: `${1 * honorFontScale}rem` }}>
+                      {formatPoints(s.performanceTotal)}
                     </div>
                   </div>
                 ))
@@ -2865,7 +2926,8 @@ function CreateClassModal({ onClose, teacherId, onCreated }) {
 
 // --- 分數統計與 CSV 匯出視窗 ---
 function StatsModal({ onClose, students, classId }) {
-  const scoreOf = (student) => student.totalPoints ?? student.points;
+  const scoreOf = (student) => student.availablePoints ?? student.totalPoints ?? student.points;
+  const performanceOf = (student) => student.performanceTotal ?? performanceBasePointsFor(student);
   const totalPoints = students.reduce((acc, curr) => acc + scoreOf(curr), 0);
   const avgPoints = students.length > 0 ? (totalPoints / students.length).toFixed(1) : 0;
   const maxPoints = students.length > 0 ? Math.max(...students.map(scoreOf)) : 0;
@@ -2873,14 +2935,14 @@ function StatsModal({ onClose, students, classId }) {
 
   const handleExport = () => {
     const BOM = '\uFEFF';
-    let csvContent = BOM + "座號,姓名,目前點數,最後更新原因,最後更新時間\n";
+    let csvContent = BOM + "座號,姓名,可兌換點數,累積表現,最後更新原因,最後更新時間\n";
     
     const exportData = [...students].sort((a, b) => parseInt(a.studentNumber || 0) - parseInt(b.studentNumber || 0));
     
     exportData.forEach(s => {
       const dateStr = s.lastUpdate ? new Date(s.lastUpdate.seconds * 1000).toLocaleDateString() : '';
       const safeReason = (s.lastReason || '').replace(/,/g, '，');
-      csvContent += `${s.studentNumber || ''},${s.name},${formatPoints(scoreOf(s))},${safeReason},${dateStr}\n`;
+      csvContent += `${s.studentNumber || ''},${s.name},${formatPoints(scoreOf(s))},${formatPoints(performanceOf(s))},${safeReason},${dateStr}\n`;
     });
 
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
@@ -2911,15 +2973,15 @@ function StatsModal({ onClose, students, classId }) {
             <div className="font-bold text-lg text-slate-800">{students.length}</div>
           </div>
           <div className="bg-white p-2.5 rounded-lg border shadow-sm">
-            <div className="text-xs text-slate-500">平均分數</div>
+            <div className="text-xs text-slate-500">平均可兌換</div>
             <div className="font-bold text-lg text-indigo-600">{avgPoints}</div>
           </div>
           <div className="bg-white p-2.5 rounded-lg border shadow-sm">
-            <div className="text-xs text-slate-500">最高分</div>
+            <div className="text-xs text-slate-500">最高可兌換</div>
             <div className="font-bold text-lg text-emerald-600">{maxPoints}</div>
           </div>
           <div className="bg-white p-2.5 rounded-lg border shadow-sm">
-            <div className="text-xs text-slate-500">最低分</div>
+            <div className="text-xs text-slate-500">最低可兌換</div>
             <div className="font-bold text-lg text-red-600">{minPoints}</div>
           </div>
         </div>
@@ -2930,7 +2992,8 @@ function StatsModal({ onClose, students, classId }) {
               <tr>
                 <th className="px-4 py-2 rounded-tl-lg">座號</th>
                 <th className="px-4 py-2">姓名</th>
-                <th className="px-4 py-2">點數</th>
+                <th className="px-4 py-2">可兌換</th>
+                <th className="px-4 py-2">累積表現</th>
                 <th className="px-4 py-2 rounded-tr-lg">最後更新</th>
               </tr>
             </thead>
@@ -2941,6 +3004,9 @@ function StatsModal({ onClose, students, classId }) {
                   <td className="px-4 py-2 font-medium text-slate-800">{s.name}</td>
                   <td className={`px-4 py-2 font-bold ${scoreOf(s) < 0 ? 'text-red-500' : 'text-indigo-600'}`}>
                     {formatPoints(scoreOf(s))}
+                  </td>
+                  <td className={`px-4 py-2 font-bold ${performanceOf(s) < 0 ? 'text-red-500' : 'text-emerald-700'}`}>
+                    {formatPoints(performanceOf(s))}
                   </td>
                   <td className="px-4 py-2 text-slate-400 text-xs">
                     {s.lastReason || '-'}
@@ -4012,11 +4078,11 @@ function SharedScorePanel({ student, presets, onUpdatePoints, onClear }) {
   const [customReason, setCustomReason] = useState('');
   const [updating, setUpdating] = useState(false);
 
-  const applyScore = async (points, reason) => {
+  const applyScore = async (points, reason, isRedemption = false) => {
     if (!student || updating) return;
     setUpdating(true);
     try {
-      const success = await onUpdatePoints(student, points, reason);
+      const success = await onUpdatePoints(student, points, reason, isRedemption);
       if (success) setCustomOpen(false);
     } finally { setUpdating(false); }
   };
@@ -4036,10 +4102,11 @@ function SharedScorePanel({ student, presets, onUpdatePoints, onClear }) {
         <div className="h-20 rounded-lg border border-indigo-200 bg-indigo-50 p-1.5 text-center flex flex-col items-center justify-center">
           <p className="text-[11px] text-indigo-500">共同加扣分</p>
           <p className="font-bold text-indigo-800 text-sm truncate w-full">{student ? `${student.studentNumber || '未編號'} ${student.name}` : '請先點選學生'}</p>
+          {student && <p className="mt-0.5 text-[11px] font-bold text-indigo-700">可兌換 {formatPoints(student.availablePoints ?? student.points)}／累積 {formatPoints(student.performanceTotal ?? performanceBasePointsFor(student))}</p>}
           {student && <button onClick={onClear} className="mt-1 text-[11px] text-indigo-600 hover:text-indigo-900 hover:underline">取消選取</button>}
         </div>
         {presets.map(preset => (
-          <button key={preset.id} disabled={!student || updating} onClick={() => applyScore(preset.value, preset.isRedemption ? `兌獎：${preset.label}` : preset.label)} className={`h-20 rounded-lg border px-1 text-center text-sm font-bold transition disabled:opacity-40 disabled:cursor-not-allowed ${preset.isRedemption ? 'border-amber-200 text-amber-800 bg-amber-50 hover:bg-amber-100' : preset.value > 0 ? 'border-blue-200 text-blue-700 bg-blue-50 hover:bg-blue-100' : 'border-pink-200 text-pink-700 bg-pink-50 hover:bg-pink-100'}`}>
+          <button key={preset.id} disabled={!student || updating} onClick={() => applyScore(preset.value, preset.isRedemption ? `兌獎：${preset.label}` : preset.label, Boolean(preset.isRedemption))} className={`h-20 rounded-lg border px-1 text-center text-sm font-bold transition disabled:opacity-40 disabled:cursor-not-allowed ${preset.isRedemption ? 'border-amber-200 text-amber-800 bg-amber-50 hover:bg-amber-100' : preset.value > 0 ? 'border-blue-200 text-blue-700 bg-blue-50 hover:bg-blue-100' : 'border-pink-200 text-pink-700 bg-pink-50 hover:bg-pink-100'}`}>
             <span className="block text-base leading-none">{preset.isRedemption ? `兌 −${Math.abs(preset.value)}` : preset.value > 0 ? `+${preset.value}` : preset.value}</span><span className="block mt-1 truncate">{preset.label}</span>
           </button>
         ))}
@@ -4080,13 +4147,17 @@ type CompactStudentCardProps = {
 };
 
 const CompactStudentCard = React.memo(function CompactStudentCard({ student, selected, onSelect, onShowHistory, fontScale, growthThresholds }: CompactStudentCardProps) {
-  const score = student.totalPoints ?? student.points;
-  const growthStage = growthStageFor(score, growthThresholds);
+  const availableScore = student.availablePoints ?? student.totalPoints ?? student.points;
+  const performanceScore = student.performanceTotal ?? performanceBasePointsFor(student);
+  const growthStage = growthStageFor(performanceScore, growthThresholds);
   const activate = () => onSelect(student);
   return <div role="button" tabIndex={0} onClick={activate} onKeyDown={event => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); activate(); } }} className={`forest-student-card min-h-24 rounded-xl border p-2 cursor-pointer transition shadow-sm ${selected ? 'border-indigo-500 ring-2 ring-indigo-200 bg-indigo-50' : 'border-slate-200 bg-white hover:border-indigo-300 hover:shadow-md'}`} title="點選後開啟加扣分視窗">
     <span className="forest-student-seat" style={{ fontSize: `${0.75 * fontScale}rem` }}>{student.studentNumber || '#'}</span>
     <button type="button" onClick={event => { event.stopPropagation(); onShowHistory(student); }} className={`forest-student-name truncate hover:underline focus:outline-none ${isThreeCharacterName(student.name) ? 'forest-name-three' : ''}`} style={{ fontSize: `${1.1 * fontScale}rem` }} title="查看加扣分紀錄">{student.name}</button>
-    <div className={`forest-student-score ${score < 0 ? 'forest-student-score-negative' : ''}`} style={{ fontSize: `${1.1 * fontScale}rem` }}>{formatStudentCardPoints(score)}</div>
+    <div className={`forest-student-score ${availableScore < 0 ? 'forest-student-score-negative' : ''}`} style={{ fontSize: `${0.92 * fontScale}rem` }}>
+      <span>可用 {formatStudentCardPoints(availableScore)}</span>
+      <span>累積 {formatStudentCardPoints(performanceScore)}</span>
+    </div>
     <div className={`forest-growth-plant forest-growth-stage-${growthStage}`} aria-label={`成長階段：${growthStageLabel[growthStage]}`} title={`成長階段：${growthStageLabel[growthStage]}`}><span className="forest-growth-soil" /><span className="forest-growth-stem" /><span className="forest-growth-leaf forest-growth-leaf-left" /><span className="forest-growth-leaf forest-growth-leaf-right" /><span className="forest-growth-canopy" /></div>
   </div>;
 });
@@ -4094,7 +4165,7 @@ const CompactStudentCard = React.memo(function CompactStudentCard({ student, sel
 // --- 舊版學生個人點數操作卡片（保留元件供相容，不再於主列表呈現） ---
 type StudentCardProps = {
   student: any;
-  onUpdatePoints: (student: any, change: number, reason?: string) => Promise<boolean>;
+  onUpdatePoints: (student: any, change: number, reason?: string, isRedemption?: boolean) => Promise<boolean>;
   onDelete: (studentId: string, studentName: string) => void;
   onShowHistory: (student: any) => void;
   presets: any[];
@@ -4106,7 +4177,7 @@ const StudentCard = React.memo(function StudentCard({ student, onUpdatePoints, o
   const [customPoints, setCustomPoints] = useState('');
   const [customReason, setCustomReason] = useState('');
 
-  const handlePointChange = async (amount: number, reason = '') => {
+  const handlePointChange = async (amount: number, reason = '', isRedemption = false) => {
     setIsUpdating(true);
     let finalReason = reason;
     if (!finalReason) {
@@ -4115,7 +4186,7 @@ const StudentCard = React.memo(function StudentCard({ student, onUpdatePoints, o
       else finalReason = "手動調整";
     }
     try {
-      return await onUpdatePoints(student, amount, finalReason);
+      return await onUpdatePoints(student, amount, finalReason, isRedemption);
     } finally {
       setIsUpdating(false);
     }
@@ -4133,7 +4204,7 @@ const StudentCard = React.memo(function StudentCard({ student, onUpdatePoints, o
     }
   };
 
-  const score = student.totalPoints ?? student.points;
+  const score = student.availablePoints ?? student.totalPoints ?? student.points;
   const scoreColor = score >= 0
     ? (score > 10 ? "text-indigo-600" : "text-slate-800")
     : "text-red-500";
@@ -4191,7 +4262,7 @@ const StudentCard = React.memo(function StudentCard({ student, onUpdatePoints, o
           {presets.map(p => (
             <button
               key={p.id}
-              onClick={() => handlePointChange(p.value, p.isRedemption ? `兌獎：${p.label}` : p.label)}
+              onClick={() => handlePointChange(p.value, p.isRedemption ? `兌獎：${p.label}` : p.label, Boolean(p.isRedemption))}
               disabled={isUpdating}
               className={`flex items-stretch h-12 rounded-lg border overflow-hidden shadow-sm hover:shadow-md transition active:scale-95 group/btn
                 ${p.isRedemption ? 'border-amber-200' : p.value > 0 ? 'border-blue-100' : 'border-pink-100'}`}

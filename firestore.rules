@@ -178,18 +178,21 @@ service cloud.firestore {
       match /student_points/{studentId} {
         allow get, list: if canReadClass(resource.data.classId);
         allow create: if ownsClass(request.resource.data.classId) &&
-          request.resource.data.keys().hasAll(['name','studentNumber','points','classId']) &&
+          request.resource.data.keys().hasAll(['name','studentNumber','points','performancePoints','classId']) &&
           request.resource.data.name is string &&
           request.resource.data.studentNumber is string &&
           request.resource.data.points is number &&
+          request.resource.data.performancePoints is number &&
           request.resource.data.keys().hasOnly([
-            'name','studentNumber','gender','points','classId','groupId','createdAt','lastReason','lastUpdate'
+            'name','studentNumber','gender','points','performancePoints','classId','groupId','createdAt','lastReason','lastUpdate'
           ]) && request.resource.data.gender in ['male', 'female', ''];
         allow update: if ownsClass(resource.data.classId) &&
           request.resource.data.classId == resource.data.classId &&
           request.resource.data.diff(resource.data).affectedKeys().hasOnly([
-            'name','studentNumber','gender','points','groupId','lastReason','lastUpdate'
+            'name','studentNumber','gender','points','performancePoints','groupId','lastReason','lastUpdate'
           ]) && request.resource.data.points is number &&
+          (!request.resource.data.keys().hasAny(['performancePoints']) ||
+            request.resource.data.performancePoints is number) &&
           // Existing students can remain without this field until their next edit.
           (!request.resource.data.keys().hasAny(['gender']) ||
             request.resource.data.gender in ['male', 'female', '']);
