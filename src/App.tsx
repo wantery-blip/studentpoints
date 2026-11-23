@@ -101,6 +101,14 @@ const appId = import.meta.env.VITE_DATA_NAMESPACE || 'default-app-id';
 const MAX_BATCH_WRITES = 450;
 // 僅保存使用者主動選擇記住的教師 Email；絕不保存密碼或 Firebase 憑證。
 const REMEMBERED_TEACHER_EMAIL_KEY = 'remembered_teacher_email';
+const AUTO_LOGOUT_MINUTES_OPTIONS = [15, 20, 30, 40, 60] as const;
+const DEFAULT_AUTO_LOGOUT_MINUTES = 30;
+const normalizeAutoLogoutMinutes = (value) => {
+  const minutes = Number(value);
+  return minutes === 0 || AUTO_LOGOUT_MINUTES_OPTIONS.includes(minutes as typeof AUTO_LOGOUT_MINUTES_OPTIONS[number])
+    ? minutes
+    : DEFAULT_AUTO_LOGOUT_MINUTES;
+};
 // 此信箱是唯一可在網站內審核教師申請的主要管理者。Firebase Auth
 // 的 email 不可被其他帳號冒用，規則亦會再次限制此權限。
 const PRIMARY_ADMIN_EMAIL = 'wantery@gmail.com';
@@ -939,7 +947,7 @@ function LoginPage({ onGoToStudent }) {
           // 主要管理者可自助建立自己的教師設定，其他帳號一律只能提出申請。
           await setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'teachers', credential.user.uid), {
             teacherId: credential.user.uid,
-            email, backupUrl: '', createdAt: serverTimestamp()
+            email, backupUrl: '', autoLogoutMinutes: DEFAULT_AUTO_LOGOUT_MINUTES, createdAt: serverTimestamp()
           });
           notify('主要管理者帳號建立成功，已登入。');
         } else {
@@ -1183,6 +1191,7 @@ function Dashboard({ user, teacherId, onLogout }) {
   const [loading, setLoading] = useState(true);
   const [teacherEmail, setTeacherEmail] = useState('');
   const [backupUrl, setBackupUrl] = useState('');
+  const [autoLogoutMinutes, setAutoLogoutMinutes] = useState(DEFAULT_AUTO_LOGOUT_MINUTES);
   
   // 視圖切換：'list' (列表模式) | 'group' (小組模式)
   const [dashboardView, setDashboardView] = useState('list');
@@ -1287,6 +1296,7 @@ function Dashboard({ user, teacherId, onLogout }) {
         const data = docSnap.data();
         setTeacherEmail(data.email || '');
         setBackupUrl(data.backupUrl || '');
+        setAutoLogoutMinutes(normalizeAutoLogoutMinutes(data.autoLogoutMinutes));
       }
     });
     return () => unsubscribe();
@@ -1587,12 +1597,11 @@ function Dashboard({ user, teacherId, onLogout }) {
 
   // 登出前送出備份，不再為等待固定延遲 1.2 秒而卡住畫面。
   const handleLogoutWithBackup = async (automatic = false) => {
-    setLogoutNotice(automatic ? '閒置超過 25 分鐘，正在備份目前分數並安全登出...' : '正在將最新資料備份至試算表並安全登出...');
+    setLogoutNotice(automatic ? `閒置超過 ${autoLogoutMinutes} 分鐘，正在備份目前分數並安全登出...` : '正在將最新資料備份至試算表並安全登出...');
     setIsLoggingOut(true);
-    if (backupUrl && students.length > 0) {
-      try { await handleCloudUpload(true); }
-      catch (err) { console.error('登出備份錯誤', err); }
-    }
+    // 不論手動或自動登出，都先嘗試上傳；未設定網址或尚無學生時會安全略過。
+    try { await handleCloudUpload(true); }
+    catch (err) { console.error('登出備份錯誤', err); }
     try { await onLogout(); }
     catch (err) {
       console.error('Firebase 登出失敗', err);
@@ -1602,10 +1611,11 @@ function Dashboard({ user, teacherId, onLogout }) {
   };
   logoutWithBackupRef.current = handleLogoutWithBackup;
 
-  // 教師管理頁面逾 25 分鐘未操作，先上傳目前班級快照再登出。
+  // 教師管理頁面逾指定時間未操作，先上傳目前班級快照再登出。
   // 學生查分頁不會掛載 Dashboard，因此不受此計時器影響。
   useEffect(() => {
-    const IDLE_LIMIT_MS = 25 * 60 * 1000;
+    if (autoLogoutMinutes === 0) return undefined;
+    const IDLE_LIMIT_MS = autoLogoutMinutes * 60 * 1000;
     let timer: number | undefined;
     const resetIdleTimer = () => {
       if (autoLogoutStartedRef.current) return;
@@ -1623,7 +1633,7 @@ function Dashboard({ user, teacherId, onLogout }) {
       if (timer) window.clearTimeout(timer);
       events.forEach(eventName => window.removeEventListener(eventName, resetIdleTimer));
     };
-  }, []);
+  }, [autoLogoutMinutes]);
 
   // --- 批次匯入 / 資料救援 (貼上文字解析：座號 姓名 分數) ---
   const handleBatchImport = async (textData) => {
@@ -2523,6 +2533,7 @@ function Dashboard({ user, teacherId, onLogout }) {
           teacherUid={user.uid}
           currentEmail={teacherEmail}
           currentBackupUrl={backupUrl}
+          currentAutoLogoutMinutes={autoLogoutMinutes}
           classes={classes}
           selectedClassId={selectedClassId}
           selectedClassName={selectedClass?.name || ''}
@@ -3337,11 +3348,12 @@ function ManagePresetsModal({ onClose = () => {}, presets, teacherId, embedded =
 }
 
 // --- 系統設定視窗 (一般 / 班級管理 / 獎勵設定 / 備份與匯入 / 安全) ---
-function SettingsModal({ onClose, classId, teacherUid, currentEmail, currentBackupUrl, classes = [], selectedClassId, selectedClassName, students = [], onUpdateStudent, onDeleteStudent, onBatchImport, isPrimaryAdmin = false, honorFontScale = 1, onHonorFontScaleChange, studentFontScale = 1, onStudentFontScaleChange, drawCardTeacherId, presets = [], presetTeacherId }) {
+function SettingsModal({ onClose, classId, teacherUid, currentEmail, currentBackupUrl, currentAutoLogoutMinutes = DEFAULT_AUTO_LOGOUT_MINUTES, classes = [], selectedClassId, selectedClassName, students = [], onUpdateStudent, onDeleteStudent, onBatchImport, isPrimaryAdmin = false, honorFontScale = 1, onHonorFontScaleChange, studentFontScale = 1, onStudentFontScaleChange, drawCardTeacherId, presets = [], presetTeacherId }) {
   const { notify, askConfirm, reportQuotaError } = useUI();
   const [activeTab, setActiveTab] = useState('general'); 
   const [email, setEmail] = useState(currentEmail || '');
   const [backupUrl, setBackupUrl] = useState(currentBackupUrl || '');
+  const [autoLogoutMinutes, setAutoLogoutMinutes] = useState(normalizeAutoLogoutMinutes(currentAutoLogoutMinutes));
   const [editingClassId, setEditingClassId] = useState(null);
   const [editingClassName, setEditingClassName] = useState('');
   const [editingClassCode, setEditingClassCode] = useState('');
@@ -3373,6 +3385,11 @@ function SettingsModal({ onClose, classId, teacherUid, currentEmail, currentBack
     const selectedClass = classes.find(item => item.id === selectedClassId);
     setGrowthThresholds(normalizeGrowthThresholds(selectedClass?.growthThresholds));
   }, [classes, selectedClassId]);
+
+  useEffect(() => {
+    setBackupUrl(currentBackupUrl || '');
+    setAutoLogoutMinutes(normalizeAutoLogoutMinutes(currentAutoLogoutMinutes));
+  }, [currentBackupUrl, currentAutoLogoutMinutes]);
 
   useEffect(() => {
     if (!isPrimaryAdmin) { setTeacherRequests([]); return undefined; }
@@ -3430,8 +3447,12 @@ function SettingsModal({ onClose, classId, teacherUid, currentEmail, currentBack
     setLoading(true);
     try {
       const authDocRef = doc(db, 'artifacts', appId, 'public', 'data', 'teachers', teacherUid);
-      await updateDoc(authDocRef, { backupUrl: backupUrl.trim(), updatedAt: serverTimestamp() });
-      notify('雲端備份設定已儲存！');
+      await updateDoc(authDocRef, {
+        backupUrl: backupUrl.trim(),
+        autoLogoutMinutes: normalizeAutoLogoutMinutes(autoLogoutMinutes),
+        updatedAt: serverTimestamp()
+      });
+      notify('備份與自動登出設定已儲存！');
     } catch (err) { 
       console.error(err); 
       if (reportQuotaError(err)) return;
@@ -3669,6 +3690,7 @@ function SettingsModal({ onClose, classId, teacherUid, currentEmail, currentBack
                 teacherId: requestItem.id,
                 email: current.data().email,
                 backupUrl: '',
+                autoLogoutMinutes: DEFAULT_AUTO_LOGOUT_MINUTES,
                 createdAt: serverTimestamp()
               });
             }
@@ -3845,7 +3867,15 @@ function SettingsModal({ onClose, classId, teacherUid, currentEmail, currentBack
                   <label className="block text-sm font-medium text-slate-700 mb-1">Google Apps Script 備份網址</label>
                   <input type="url" value={backupUrl} onChange={(e) => setBackupUrl(e.target.value)} className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none text-xs font-mono" placeholder="https://script.google.com/macros/s/.../exec" />
                 </div>
-                <button type="submit" disabled={loading} className="w-full bg-indigo-600 text-white font-bold py-2 rounded-lg hover:bg-indigo-700 transition shadow-md text-sm">{loading ? '儲存中...' : '儲存備份網址'}</button>
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">自動登出時間</label>
+                  <select value={autoLogoutMinutes} onChange={event => setAutoLogoutMinutes(Number(event.target.value))} className="w-full appearance-none rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-700 outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200">
+                    {AUTO_LOGOUT_MINUTES_OPTIONS.map(minutes => <option key={minutes} value={minutes}>{minutes} 分鐘未操作後登出</option>)}
+                    <option value={0}>永不自動登出</option>
+                  </select>
+                  <p className="mt-1.5 text-xs leading-relaxed text-slate-500">教師頁面未操作達設定時間時，系統會先上傳目前班級備份，再安全登出。</p>
+                </div>
+                <button type="submit" disabled={loading} className="w-full bg-indigo-600 text-white font-bold py-2 rounded-lg hover:bg-indigo-700 transition shadow-md text-sm">{loading ? '儲存中...' : '儲存備份與登出設定'}</button>
               </form>
               
               <div className="border-t border-slate-200 pt-4">

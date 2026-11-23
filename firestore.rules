@@ -61,14 +61,18 @@ service cloud.firestore {
             get(requestPath(uid)).data.email == request.resource.data.email &&
             get(requestPath(uid)).data.status == 'pending')
         ) &&
-          request.resource.data.keys().hasOnly(['teacherId','email','backupUrl','createdAt']) &&
+          request.resource.data.keys().hasOnly(['teacherId','email','backupUrl','autoLogoutMinutes','createdAt']) &&
           request.resource.data.keys().hasAll(['teacherId','email','backupUrl','createdAt']) &&
           request.resource.data.teacherId == uid &&
           request.resource.data.email is string &&
           request.resource.data.backupUrl is string &&
+          (!request.resource.data.keys().hasAny(['autoLogoutMinutes']) ||
+            request.resource.data.autoLogoutMinutes in [0, 15, 20, 30, 40, 60]) &&
           request.resource.data.createdAt == request.time;
         allow update: if signedIn() && request.auth.uid == uid &&
-          request.resource.data.diff(resource.data).affectedKeys().hasOnly(['email','backupUrl','updatedAt']) &&
+          request.resource.data.diff(resource.data).affectedKeys().hasOnly(['email','backupUrl','autoLogoutMinutes','updatedAt']) &&
+          (!request.resource.data.keys().hasAny(['autoLogoutMinutes']) ||
+            request.resource.data.autoLogoutMinutes in [0, 15, 20, 30, 40, 60]) &&
           request.resource.data.teacherId == resource.data.teacherId;
         allow delete: if false;
       }
