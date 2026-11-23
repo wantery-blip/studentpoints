@@ -333,7 +333,9 @@ body {
   font-size: .8em;
   opacity: .9;
 }
-.forest-student-score-negative { color: var(--forest-danger) !important; }
+.forest-score-available { color: #a16207 !important; }
+.forest-score-performance { color: #397144 !important; }
+.forest-student-score-negative .forest-score-available { color: var(--forest-danger) !important; }
 .forest-growth-plant {
   position: absolute;
   z-index: 1;

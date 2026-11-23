@@ -703,8 +703,8 @@ function StudentReadOnlyCard({ student, growthThresholds }) {
       <span className="forest-student-seat">{student.studentNumber || '#'}</span>
       <p className={`forest-student-name truncate ${isThreeCharacterName(student.name) ? 'forest-name-three' : ''}`}>{student.name}</p>
       <div className={`forest-student-score ${availableScore < 0 ? 'forest-student-score-negative' : ''}`}>
-        <span>可用 {formatStudentCardPoints(availableScore)}</span>
-        <span>累積 {formatStudentCardPoints(performanceScore)}</span>
+        <span className="forest-score-available">可用 {formatStudentCardPoints(availableScore)}</span>
+        <span className="forest-score-performance">累積 {formatStudentCardPoints(performanceScore)}</span>
       </div>
       <div className={`forest-growth-plant forest-growth-stage-${growthStage}`} aria-label={`成長階段：${growthStageLabel[growthStage]}`} title={`成長階段：${growthStageLabel[growthStage]}`}><span className="forest-growth-soil" /><span className="forest-growth-stem" /><span className="forest-growth-leaf forest-growth-leaf-left" /><span className="forest-growth-leaf forest-growth-leaf-right" /><span className="forest-growth-canopy" /></div>
     </article>
@@ -4155,8 +4155,8 @@ const CompactStudentCard = React.memo(function CompactStudentCard({ student, sel
     <span className="forest-student-seat" style={{ fontSize: `${0.75 * fontScale}rem` }}>{student.studentNumber || '#'}</span>
     <button type="button" onClick={event => { event.stopPropagation(); onShowHistory(student); }} className={`forest-student-name truncate hover:underline focus:outline-none ${isThreeCharacterName(student.name) ? 'forest-name-three' : ''}`} style={{ fontSize: `${1.1 * fontScale}rem` }} title="查看加扣分紀錄">{student.name}</button>
     <div className={`forest-student-score ${availableScore < 0 ? 'forest-student-score-negative' : ''}`} style={{ fontSize: `${0.92 * fontScale}rem` }}>
-      <span>可用 {formatStudentCardPoints(availableScore)}</span>
-      <span>累積 {formatStudentCardPoints(performanceScore)}</span>
+      <span className="forest-score-available">可用 {formatStudentCardPoints(availableScore)}</span>
+      <span className="forest-score-performance">累積 {formatStudentCardPoints(performanceScore)}</span>
     </div>
     <div className={`forest-growth-plant forest-growth-stage-${growthStage}`} aria-label={`成長階段：${growthStageLabel[growthStage]}`} title={`成長階段：${growthStageLabel[growthStage]}`}><span className="forest-growth-soil" /><span className="forest-growth-stem" /><span className="forest-growth-leaf forest-growth-leaf-left" /><span className="forest-growth-leaf forest-growth-leaf-right" /><span className="forest-growth-canopy" /></div>
   </div>;
