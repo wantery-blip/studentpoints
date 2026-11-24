@@ -392,11 +392,12 @@ body {
   grid-row: 3;
   align-self: end;
   justify-self: center;
-  /* 每張成長圖已裁成學生卡的 4:5 畫布；以 contain 保留完整比例。 */
-  width: 142%;
-  height: 235%;
+  /* 成長圖為 4:5 畫布（上方約 37%、下方約 7% 為透明留白）；
+     依卡片下方剩餘空間等比縮放並貼齊底端，避免遮住分數且不變形。 */
+  width: 106%;
+  height: min(166%, 132.5cqi);
   min-height: 0;
-  transform: translateY(.48rem);
+  transform: translateY(7.2%);
   pointer-events: none;
   background-position: center bottom;
   background-repeat: no-repeat;
