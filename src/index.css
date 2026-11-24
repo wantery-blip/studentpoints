@@ -123,6 +123,128 @@ body {
   box-shadow: var(--forest-shadow) !important;
 }
 
+/* 奇幻森林成長圖鑑：已解鎖彩圖、1–12 階剪影預告、13–18 階神秘種子封印卡 */
+.forest-codex-page .forest-codex-card {
+  box-shadow: 0 6px 18px rgba(45, 72, 49, .09) !important;
+}
+.forest-codex-page .forest-codex-unlocked {
+  border-color: #b7cea9 !important;
+  background: linear-gradient(165deg, rgba(255,253,245,.97), rgba(245,239,218,.94)) !important;
+}
+.forest-codex-page .forest-codex-unlocked:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 10px 24px rgba(45, 72, 49, .13) !important;
+}
+.forest-codex-page .forest-codex-final {
+  border-color: #d6b15c !important;
+  background: linear-gradient(165deg, rgba(255,252,238,.99), rgba(249,237,200,.95)) !important;
+  box-shadow: 0 8px 24px rgba(180, 134, 42, .18) !important;
+}
+.forest-codex-page .forest-codex-silhouette {
+  border-style: dashed !important;
+  border-color: #c2d1ba !important;
+  background: linear-gradient(165deg, rgba(244,247,239,.94), rgba(232,239,226,.92)) !important;
+}
+.forest-codex-page .forest-codex-sealed {
+  border-color: rgba(234, 197, 108, .48) !important;
+  background:
+    radial-gradient(circle at 50% 34%, rgba(134, 239, 172, .18), transparent 56%),
+    radial-gradient(circle at 82% 16%, rgba(253, 224, 71, .16), transparent 40%),
+    linear-gradient(160deg, #1b3629, #244636 52%, #192d2a) !important;
+  box-shadow: 0 10px 24px rgba(20, 42, 32, .22) !important;
+}
+.forest-codex-page .forest-codex-sealed-final {
+  border-color: rgba(251, 191, 36, .72) !important;
+  background:
+    radial-gradient(circle at 50% 34%, rgba(253, 224, 71, .24), transparent 56%),
+    radial-gradient(circle at 18% 18%, rgba(167, 243, 208, .18), transparent 42%),
+    linear-gradient(160deg, #242642, #233f37 54%, #2c2419) !important;
+}
+.forest-codex-stage-art {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 4 / 3.3;
+  overflow: hidden;
+  border-radius: 12px;
+  background: radial-gradient(circle at 50% 72%, rgba(255,255,255,.72), rgba(237,243,232,.32));
+}
+.forest-codex-tree-img {
+  position: absolute;
+  left: 50%;
+  bottom: 0;
+  width: 100%;
+  height: 162%;
+  transform: translate(-50%, 6.5%);
+  background-position: center bottom;
+  background-repeat: no-repeat;
+  background-size: contain;
+  pointer-events: none;
+  user-select: none;
+}
+.forest-codex-tree-silhouette {
+  filter: brightness(0) invert(26%) sepia(18%) saturate(560%) hue-rotate(84deg) opacity(.30) blur(.4px);
+}
+.forest-codex-question-badge {
+  position: absolute;
+  left: 50%;
+  top: 52%;
+  transform: translate(-50%, -50%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.75rem;
+  height: 2.75rem;
+  border-radius: 999px;
+  border: 2px solid rgba(255, 250, 230, .92);
+  background: radial-gradient(circle at 35% 30%, rgba(255, 252, 235, .95), rgba(217, 232, 205, .88));
+  color: #2c5234;
+  font-family: Georgia, 'Noto Serif TC', serif;
+  font-size: 1.45rem;
+  font-weight: 900;
+  box-shadow: 0 0 18px rgba(255, 248, 210, .9), 0 4px 10px rgba(35, 71, 45, .18);
+  pointer-events: none;
+}
+.forest-codex-seed-seal {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  aspect-ratio: 4 / 3.3;
+  border-radius: 12px;
+  background: radial-gradient(circle at 50% 50%, rgba(254, 243, 199, .14), rgba(15, 23, 20, .18));
+  overflow: hidden;
+}
+.forest-codex-seed-halo {
+  position: absolute;
+  width: 6.2rem;
+  height: 6.2rem;
+  border-radius: 999px;
+  background: radial-gradient(circle, rgba(253, 224, 71, .34), rgba(134, 239, 172, .16) 55%, transparent 72%);
+  filter: blur(4px);
+  pointer-events: none;
+}
+.forest-codex-seed-svg {
+  position: relative;
+  z-index: 1;
+  width: 5.5rem;
+  height: 5.5rem;
+  filter: drop-shadow(0 0 10px rgba(253, 230, 138, .38));
+}
+.forest-codex-seed-q {
+  position: absolute;
+  z-index: 2;
+  top: 52%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  color: #20402a;
+  font-family: Georgia, 'Noto Serif TC', serif;
+  font-size: 1.25rem;
+  font-weight: 900;
+  text-shadow: 0 0 8px rgba(255, 252, 230, .95);
+  pointer-events: none;
+}
+
 .forest-student-board::after {
   content: '❧';
   position: fixed;

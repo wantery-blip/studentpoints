@@ -71,7 +71,9 @@ import {
   FileInput,
   AlertCircle,
   Info,
-  Sprout
+  Sprout,
+  BookOpen,
+  Sparkles
 } from 'lucide-react';
 
 // --- Firebase Configuration & Initialization ---
@@ -214,10 +216,29 @@ const formatStudentCardPoints = (value) => {
 };
 const isThreeCharacterName = (name) => Array.from(String(name || '').trim()).length === 3;
 const GROWTH_STAGE_LABELS = [
-  '土壤萌芽', '初生嫩芽', '兩葉芽', '枝幹舒展', '初成樹冠', '綠蔭樹',
-  '鳥巢樹', '花樹', '果樹', '螢光樹', '黃葉樹', '樹屋樹', '星光藍樹',
-  '秋葉樹', '彩虹樹', '雪景樹', '星空貓頭鷹樹', '森林樹屋'
+  '破土小捲芽', '雙葉小精靈', '四葉幸運苗', '展枝小樹苗',
+  '陽光綠蔭樹', '藍鳥築巢樹', '春櫻花語樹', '黃金豐收樹',
+  '松鼠螢火樹', '金葉兔兔樹', '秘密基地樹', '藍晶星光樹',
+  '烈焰楓紅樹', '彩虹奇遇樹', '雪狐冬夢樹', '星空貓頭鷹',
+  '光之秘境樹', '夢幻樹屋王國'
 ];
+const GROWTH_CODEX_CHAPTERS = [
+  { id: 'sprout', title: '萌芽幼苗期', range: [0, 3] },
+  { id: 'bloom', title: '成樹花果期', range: [4, 7] },
+  { id: 'habitat', title: '生態樹屋期', range: [8, 11] },
+  { id: 'fantasy', title: '四季奇幻期・最終滿級', range: [12, 17], sealed: true },
+];
+const GROWTH_SEALED_START_INDEX = 12; // 第 13～18 階未解鎖前以神秘種子封印卡呈現
+const growthStageImageUrl = (stageIndex: number) =>
+  `${import.meta.env.BASE_URL}forest-assets/growth-stages-18/student-growth-stage-${String(Math.max(0, Math.min(17, stageIndex)) + 1).padStart(2, '0')}.png`;
+const timestampToMillis = (value: any) => {
+  if (!value) return Number.POSITIVE_INFINITY;
+  if (typeof value?.toMillis === 'function') return value.toMillis();
+  if (typeof value?.seconds === 'number') return value.seconds * 1000;
+  if (value instanceof Date) return value.getTime();
+  const parsed = Date.parse(String(value));
+  return Number.isFinite(parsed) ? parsed : Number.POSITIVE_INFINITY;
+};
 const GROWTH_STAGE_SEGMENTS = [
   { firstStage: 0, stageCount: 4 },
   { firstStage: 4, stageCount: 4 },
@@ -749,6 +770,246 @@ function StudentReadOnlyCard({ student, growthThresholds }) {
   );
 }
 
+// --- 奇幻森林成長圖鑑：全班共同解鎖，1–12 階未解鎖顯示剪影，13–18 階未解鎖顯示神秘種子封印卡。 ---
+function StudentGrowthCodex({ classNameLabel, students, growthThresholds, onBack }) {
+  const milestones = useMemo(() => growthStageMilestonesFor(growthThresholds), [growthThresholds]);
+  const maxClassPoints = useMemo(() => (
+    students.reduce((best, student) => Math.max(best, Number(student.performanceTotal || 0)), 0)
+  ), [students]);
+
+  const stageEntries = useMemo(() => (
+    GROWTH_STAGE_LABELS.map((name, index) => {
+      const minPoints = milestones[index] ?? 0;
+      const unlockedStudents = students
+        .filter(student => growthStageFor(student.performanceTotal, growthThresholds) >= index)
+        .sort((a, b) => {
+          const scoreDiff = Number(b.performanceTotal || 0) - Number(a.performanceTotal || 0);
+          if (scoreDiff !== 0) return scoreDiff;
+          const updateDiff = timestampToMillis(a.lastUpdate) - timestampToMillis(b.lastUpdate);
+          if (updateDiff !== 0) return updateDiff;
+          const createdDiff = timestampToMillis(a.createdAt) - timestampToMillis(b.createdAt);
+          if (createdDiff !== 0) return createdDiff;
+          return String(a.studentNumber || '').localeCompare(String(b.studentNumber || ''), undefined, { numeric: true });
+        });
+      const unlocked = unlockedStudents.length > 0;
+      return {
+        index,
+        stageNumber: index + 1,
+        name,
+        minPoints,
+        unlocked,
+        unlockedCount: unlockedStudents.length,
+        firstUnlocker: unlockedStudents[0] || null,
+        isSealedTier: index >= GROWTH_SEALED_START_INDEX,
+        isFinalStage: index === GROWTH_STAGE_LABELS.length - 1,
+      };
+    })
+  ), [students, growthThresholds, milestones]);
+
+  const unlockedStageCount = stageEntries.filter(entry => entry.unlocked).length;
+  const nextLockedEntry = stageEntries.find(entry => !entry.unlocked) || null;
+  const remainingToNext = nextLockedEntry ? Math.max(0, Math.round((nextLockedEntry.minPoints - maxClassPoints) * 10) / 10) : 0;
+
+  return (
+    <div className="forest-student-guide forest-codex-page min-h-screen p-4 sm:p-6 text-slate-800">
+      <div className="max-w-5xl mx-auto">
+        <header className="relative overflow-hidden rounded-2xl bg-white border border-emerald-100 shadow-sm p-6 sm:p-8 text-center">
+          <button type="button" onClick={onBack} className="absolute top-4 left-4 inline-flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-sm font-bold text-slate-600 hover:bg-slate-100 hover:text-slate-900 transition" title="返回學生查分">
+            <ArrowLeft className="w-4 h-4" /> 返回查分
+          </button>
+          <div className="mx-auto mt-5 sm:mt-2 mb-3 flex h-14 w-14 items-center justify-center rounded-full bg-emerald-100 text-emerald-700 shadow-sm">
+            <BookOpen className="w-7 h-7" />
+          </div>
+          <h1 className="text-2xl sm:text-3xl font-black text-slate-800 tracking-wide">奇幻森林成長圖鑑</h1>
+          <p className="mt-1.5 text-sm text-slate-600">
+            {classNameLabel ? `${classNameLabel}・` : ''}只要班上有任一位同學累積達標，全班圖鑑就會點亮該階段！
+          </p>
+
+          <div className="mx-auto mt-5 max-w-xl rounded-xl border border-emerald-200/80 bg-emerald-50/60 p-3.5 text-left">
+            <div className="flex flex-wrap items-center justify-between gap-2 text-xs sm:text-sm font-bold text-emerald-900">
+              <span className="inline-flex items-center gap-1.5">
+                <Sparkles className="w-4 h-4 text-amber-600" />
+                全班探索進度：{unlockedStageCount} / {stageEntries.length} 階
+              </span>
+              <span className="text-emerald-700">
+                {nextLockedEntry
+                  ? `距下一階（${formatPoints(nextLockedEntry.minPoints)} 分）還差 ${formatPoints(remainingToNext)} 分`
+                  : '全班已解鎖全部 18 階傳說森林！'}
+              </span>
+            </div>
+            <div className="mt-2 h-2.5 w-full overflow-hidden rounded-full bg-emerald-200/70">
+              <div
+                className="h-full rounded-full bg-gradient-to-r from-emerald-500 via-lime-500 to-amber-500 transition-all duration-500"
+                style={{ width: `${Math.round((unlockedStageCount / stageEntries.length) * 100)}%` }}
+              />
+            </div>
+          </div>
+        </header>
+
+        <main className="mt-6 space-y-8">
+          {GROWTH_CODEX_CHAPTERS.map(chapter => {
+            const items = stageEntries.slice(chapter.range[0], chapter.range[1] + 1);
+            const chapterUnlocked = items.filter(item => item.unlocked).length;
+            return (
+              <section key={chapter.id} aria-label={chapter.title}>
+                <div className="mb-3 flex flex-wrap items-center justify-between gap-2 px-1">
+                  <div className="flex items-center gap-2">
+                    <span className={`inline-flex h-6 w-6 items-center justify-center rounded-full text-xs font-black ${chapter.sealed ? 'bg-amber-100 text-amber-800' : 'bg-emerald-100 text-emerald-800'}`}>
+                      {chapter.sealed ? '✦' : '♣'}
+                    </span>
+                    <h2 className="text-base sm:text-lg font-black text-slate-800">{chapter.title}</h2>
+                    {chapter.sealed && (
+                      <span className="rounded-full bg-amber-100/90 px-2.5 py-0.5 text-xs font-bold text-amber-800">
+                        神秘封印區
+                      </span>
+                    )}
+                  </div>
+                  <span className="text-xs font-bold text-slate-500">已點亮 {chapterUnlocked} / {items.length}</span>
+                </div>
+
+                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-4">
+                  {items.map(entry => {
+                    if (entry.unlocked) {
+                      return (
+                        <article
+                          key={entry.stageNumber}
+                          className={`forest-codex-card forest-codex-unlocked relative flex flex-col overflow-hidden rounded-2xl border p-3 sm:p-3.5 transition ${entry.isFinalStage ? 'forest-codex-final' : ''}`}
+                        >
+                          <div className="flex items-center justify-between gap-1 text-xs font-bold">
+                            <span className={`rounded-full px-2 py-0.5 ${entry.isFinalStage ? 'bg-amber-100 text-amber-800' : 'bg-emerald-100/90 text-emerald-800'}`}>
+                              {entry.isFinalStage ? '最終滿級' : `第 ${entry.stageNumber} 階`}
+                            </span>
+                            <span className="text-slate-500">{formatPoints(entry.minPoints)} 分</span>
+                          </div>
+
+                          <div className="forest-codex-stage-art mt-2">
+                            <div
+                              className="forest-codex-tree-img"
+                              style={{ backgroundImage: `url('${growthStageImageUrl(entry.index)}')` }}
+                              role="img"
+                              aria-label={`第 ${entry.stageNumber} 階：${entry.name}`}
+                            />
+                          </div>
+
+                          <h3 className="mt-2.5 text-center text-base sm:text-lg font-black text-slate-800 tracking-wide">
+                            {entry.name}
+                          </h3>
+
+                          <div className="mt-2 space-y-1 rounded-xl border border-emerald-200/70 bg-white/75 px-2.5 py-2 text-xs">
+                            <div className="flex items-center justify-between gap-1 text-amber-800 font-bold">
+                              <span className="inline-flex shrink-0 items-center gap-1 text-amber-700">
+                                <Crown className="w-3.5 h-3.5" /> 首位解鎖者
+                              </span>
+                              <span className="truncate text-right text-slate-800">{entry.firstUnlocker?.name || '—'}</span>
+                            </div>
+                            <div className="flex items-center justify-between gap-1 text-emerald-800 font-semibold">
+                              <span className="inline-flex items-center gap-1 text-emerald-700">
+                                <Users className="w-3.5 h-3.5" /> 已解鎖人數
+                              </span>
+                              <span>{entry.unlockedCount} 人</span>
+                            </div>
+                          </div>
+                        </article>
+                      );
+                    }
+
+                    if (entry.isSealedTier) {
+                      return (
+                        <article
+                          key={entry.stageNumber}
+                          className={`forest-codex-card forest-codex-sealed relative flex flex-col overflow-hidden rounded-2xl border p-3 sm:p-3.5 ${entry.isFinalStage ? 'forest-codex-sealed-final' : ''}`}
+                        >
+                          <div className="flex items-center justify-between gap-1 text-xs font-bold">
+                            <span className="rounded-full bg-white/15 px-2 py-0.5 text-amber-200">
+                              {entry.isFinalStage ? '最終滿級' : `第 ${entry.stageNumber} 階`}
+                            </span>
+                            <span className="inline-flex items-center gap-1 text-amber-200/95">
+                              <Lock className="w-3 h-3" /> {formatPoints(entry.minPoints)} 分
+                            </span>
+                          </div>
+
+                          <div className="forest-codex-seed-seal mt-2" aria-label={`第 ${entry.stageNumber} 階神秘種子封印中`}>
+                            <div className="forest-codex-seed-halo" />
+                            <svg viewBox="0 0 120 120" className="forest-codex-seed-svg" aria-hidden="true">
+                              <defs>
+                                <radialGradient id={`seedGlow-${entry.stageNumber}`} cx="50%" cy="45%" r="55%">
+                                  <stop offset="0%" stopColor="#fef3c7" />
+                                  <stop offset="55%" stopColor="#86efac" />
+                                  <stop offset="100%" stopColor="#166534" />
+                                </radialGradient>
+                              </defs>
+                              <circle cx="60" cy="60" r="46" fill="none" stroke="rgba(253,230,138,0.35)" strokeWidth="1.5" strokeDasharray="5 5" />
+                              <circle cx="60" cy="60" r="36" fill="rgba(255,255,255,0.06)" stroke="rgba(167,243,208,0.4)" strokeWidth="1.2" />
+                              <path d="M60 27 C75 42, 82 62, 74 79 C68 90, 52 90, 46 79 C38 62, 45 42, 60 27 Z" fill={`url(#seedGlow-${entry.stageNumber})`} stroke="#fef08a" strokeWidth="2" />
+                              <path d="M60 36 C56 52, 57 68, 60 82" fill="none" stroke="rgba(255,255,255,0.55)" strokeWidth="2" strokeLinecap="round" />
+                              <circle cx="32" cy="34" r="2.2" fill="#fde68a" />
+                              <circle cx="90" cy="40" r="1.8" fill="#bbf7d0" />
+                              <circle cx="86" cy="84" r="2.2" fill="#fde68a" />
+                              <circle cx="34" cy="82" r="1.6" fill="#bbf7d0" />
+                            </svg>
+                            <span className="forest-codex-seed-q" aria-hidden="true">?</span>
+                          </div>
+
+                          <h3 className="mt-2.5 text-center text-base sm:text-lg font-black tracking-widest text-amber-100">
+                            ???
+                          </h3>
+
+                          <div className="mt-2 rounded-xl border border-amber-200/25 bg-black/20 px-2.5 py-2 text-center text-xs font-bold text-amber-100/90">
+                            <div>神秘種子封印中</div>
+                            <div className="mt-0.5 text-[11px] font-semibold text-emerald-200/90">
+                              累積達 {formatPoints(entry.minPoints)} 分解除封印
+                            </div>
+                          </div>
+                        </article>
+                      );
+                    }
+
+                    return (
+                      <article
+                        key={entry.stageNumber}
+                        className="forest-codex-card forest-codex-silhouette relative flex flex-col overflow-hidden rounded-2xl border p-3 sm:p-3.5"
+                      >
+                        <div className="flex items-center justify-between gap-1 text-xs font-bold">
+                          <span className="rounded-full bg-slate-200/80 px-2 py-0.5 text-slate-600">
+                            第 {entry.stageNumber} 階
+                          </span>
+                          <span className="inline-flex items-center gap-1 text-slate-500">
+                            <Lock className="w-3 h-3" /> {formatPoints(entry.minPoints)} 分解鎖
+                          </span>
+                        </div>
+
+                        <div className="forest-codex-stage-art mt-2" aria-label={`第 ${entry.stageNumber} 階未解鎖剪影`}>
+                          <div
+                            className="forest-codex-tree-img forest-codex-tree-silhouette"
+                            style={{ backgroundImage: `url('${growthStageImageUrl(entry.index)}')` }}
+                          />
+                          <div className="forest-codex-question-badge" aria-hidden="true">?</div>
+                        </div>
+
+                        <h3 className="mt-2.5 text-center text-base sm:text-lg font-black tracking-widest text-slate-500">
+                          ???
+                        </h3>
+
+                        <div className="mt-2 rounded-xl border border-dashed border-slate-300/80 bg-white/55 px-2.5 py-2 text-center text-xs font-bold text-slate-500">
+                          {formatPoints(entry.minPoints)} 分解鎖 / ???
+                        </div>
+                      </article>
+                    );
+                  })}
+                </div>
+              </section>
+            );
+          })}
+        </main>
+
+        <p className="mx-auto mt-8 max-w-2xl text-center text-xs leading-5 text-slate-500">
+          累積表現積分會持續成長，兌換獎勵不會讓已點亮的森林圖鑑熄滅！
+        </p>
+      </div>
+    </div>
+  );
+}
+
 // --- 學生唯讀查分儀表板 ---
 function StudentDashboard({ classId, onBack, onShowRewardGuide }) {
   const [students, setStudents] = useState([]);
@@ -756,6 +1017,7 @@ function StudentDashboard({ classId, onBack, onShowRewardGuide }) {
   const [classInfo, setClassInfo] = useState(null);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState('');
+  const [showGrowthCodex, setShowGrowthCodex] = useState(false);
 
   // 即時監聽班級資訊
   useEffect(() => {
@@ -836,6 +1098,17 @@ function StudentDashboard({ classId, onBack, onShowRewardGuide }) {
     );
   }
 
+  if (showGrowthCodex) {
+    return (
+      <StudentGrowthCodex
+        classNameLabel={classInfo?.name || ''}
+        students={displayedStudents}
+        growthThresholds={growthThresholds}
+        onBack={() => setShowGrowthCodex(false)}
+      />
+    );
+  }
+
   return (
     <div className="forest-student-board forest-student-dashboard min-h-screen font-sans text-slate-800 p-4 sm:p-6 relative">
       <button 
@@ -847,7 +1120,7 @@ function StudentDashboard({ classId, onBack, onShowRewardGuide }) {
       </button>
 
       <div className="forest-student-content max-w-5xl mx-auto mt-8">
-        {/* 班級標頭：班級名稱與獎勵卡入口維持同一列。 */}
+        {/* 班級標頭：班級名稱與成長圖鑑、獎勵卡入口維持同一列。 */}
         <header className="forest-class-header bg-white p-4 sm:p-5 rounded-xl shadow-sm mb-6 flex items-center justify-between gap-3 relative overflow-hidden">
           <div className="absolute top-0 left-0 w-full h-1.5 bg-gradient-to-r from-emerald-400 to-teal-500"></div>
           <div className="relative z-10 flex min-w-0 items-center gap-3">
@@ -858,9 +1131,14 @@ function StudentDashboard({ classId, onBack, onShowRewardGuide }) {
               {classInfo ? classInfo.name : '班級榮譽榜'}
             </h1>
           </div>
-          <button type="button" onClick={onShowRewardGuide} className="relative z-10 inline-flex shrink-0 items-center gap-2 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm font-bold text-emerald-700 hover:bg-emerald-100 transition sm:px-4">
-            <Award className="w-4 h-4" /> <span className="hidden sm:inline">查看獎勵卡說明</span><span className="sm:hidden">獎勵卡</span>
-          </button>
+          <div className="relative z-10 flex shrink-0 items-center gap-2">
+            <button type="button" onClick={() => setShowGrowthCodex(true)} className="inline-flex shrink-0 items-center gap-1.5 rounded-lg border border-lime-300 bg-lime-50 px-3 py-2 text-sm font-bold text-lime-800 hover:bg-lime-100 transition sm:px-4">
+              <BookOpen className="w-4 h-4" /> <span>成長圖鑑</span>
+            </button>
+            <button type="button" onClick={onShowRewardGuide} className="inline-flex shrink-0 items-center gap-1.5 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm font-bold text-emerald-700 hover:bg-emerald-100 transition sm:px-4">
+              <Award className="w-4 h-4" /> <span className="hidden sm:inline">查看獎勵卡說明</span><span className="sm:hidden">獎勵卡</span>
+            </button>
+          </div>
         </header>
 
         {/* 前 9 名積分排名：名次置於左上圓圈，姓名與分數放大置中。 */}
