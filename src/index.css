@@ -392,21 +392,35 @@ body {
   grid-row: 3;
   align-self: end;
   justify-self: center;
-  width: 116%;
-  height: 162%;
+  /* 每張成長圖已裁成學生卡的 4:5 畫布；以 contain 保留完整比例。 */
+  width: 142%;
+  height: 235%;
   min-height: 0;
-  transform: translateY(.22rem);
+  transform: translateY(.48rem);
   pointer-events: none;
   background-position: center bottom;
   background-repeat: no-repeat;
   background-size: contain;
 }
 .forest-growth-plant > span { display: none; }
-.forest-growth-stage-0 { background-image: url('/forest-assets/student-growth-stage-0.png'); }
-.forest-growth-stage-1 { background-image: url('/forest-assets/student-growth-stage-1.png'); }
-.forest-growth-stage-2 { background-image: url('/forest-assets/student-growth-stage-2.png'); }
-.forest-growth-stage-3 { background-image: url('/forest-assets/student-growth-stage-3.png'); }
-.forest-growth-stage-4 { background-image: url('/forest-assets/student-growth-stage-4.png'); }
+.forest-growth-stage-0 { background-image: url('/forest-assets/growth-stages-18/student-growth-stage-01.png'); }
+.forest-growth-stage-1 { background-image: url('/forest-assets/growth-stages-18/student-growth-stage-02.png'); }
+.forest-growth-stage-2 { background-image: url('/forest-assets/growth-stages-18/student-growth-stage-03.png'); }
+.forest-growth-stage-3 { background-image: url('/forest-assets/growth-stages-18/student-growth-stage-04.png'); }
+.forest-growth-stage-4 { background-image: url('/forest-assets/growth-stages-18/student-growth-stage-05.png'); }
+.forest-growth-stage-5 { background-image: url('/forest-assets/growth-stages-18/student-growth-stage-06.png'); }
+.forest-growth-stage-6 { background-image: url('/forest-assets/growth-stages-18/student-growth-stage-07.png'); }
+.forest-growth-stage-7 { background-image: url('/forest-assets/growth-stages-18/student-growth-stage-08.png'); }
+.forest-growth-stage-8 { background-image: url('/forest-assets/growth-stages-18/student-growth-stage-09.png'); }
+.forest-growth-stage-9 { background-image: url('/forest-assets/growth-stages-18/student-growth-stage-10.png'); }
+.forest-growth-stage-10 { background-image: url('/forest-assets/growth-stages-18/student-growth-stage-11.png'); }
+.forest-growth-stage-11 { background-image: url('/forest-assets/growth-stages-18/student-growth-stage-12.png'); }
+.forest-growth-stage-12 { background-image: url('/forest-assets/growth-stages-18/student-growth-stage-13.png'); }
+.forest-growth-stage-13 { background-image: url('/forest-assets/growth-stages-18/student-growth-stage-14.png'); }
+.forest-growth-stage-14 { background-image: url('/forest-assets/growth-stages-18/student-growth-stage-15.png'); }
+.forest-growth-stage-15 { background-image: url('/forest-assets/growth-stages-18/student-growth-stage-16.png'); }
+.forest-growth-stage-16 { background-image: url('/forest-assets/growth-stages-18/student-growth-stage-17.png'); }
+.forest-growth-stage-17 { background-image: url('/forest-assets/growth-stages-18/student-growth-stage-18.png'); }
 
 /* Main actions become moss; destructive actions retain red. */
 .forest-app button[class*="bg-indigo-600"],

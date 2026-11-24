@@ -213,16 +213,28 @@ const formatStudentCardPoints = (value) => {
   return Number.isInteger(rounded) ? String(rounded) : rounded.toFixed(1);
 };
 const isThreeCharacterName = (name) => Array.from(String(name || '').trim()).length === 3;
+const GROWTH_STAGE_LABELS = [
+  '土壤萌芽', '初生嫩芽', '兩葉芽', '枝幹舒展', '初成樹冠', '綠蔭樹',
+  '鳥巢樹', '花樹', '果樹', '螢光樹', '黃葉樹', '樹屋樹', '星光藍樹',
+  '秋葉樹', '彩虹樹', '雪景樹', '星空貓頭鷹樹', '森林樹屋'
+];
 const growthStageFor = (score, configuredThresholds = DEFAULT_GROWTH_THRESHOLDS) => {
-  const points = Number(score || 0);
+  const points = Math.max(0, Number(score || 0));
   const [sprout, seedling, sapling, tree] = normalizeGrowthThresholds(configuredThresholds);
-  if (points >= tree) return 4;
-  if (points >= sapling) return 3;
-  if (points >= seedling) return 2;
-  if (points >= sprout) return 1;
-  return 0;
+  const stageWithin = (start, end, firstStage, stageCount) => {
+    const span = Math.max(1, end - start);
+    const step = span / stageCount;
+    return Math.min(firstStage + stageCount - 1, firstStage + Math.floor((points - start) / step));
+  };
+  if (points < sprout) return stageWithin(0, sprout, 0, 2);
+  if (points < seedling) return stageWithin(sprout, seedling, 2, 4);
+  if (points < sapling) return stageWithin(seedling, sapling, 6, 4);
+  if (points < tree) return stageWithin(sapling, tree, 10, 4);
+  // 最高四階會以最後一段（小樹苗→完整樹冠）的四分之一繼續成長。
+  const finalStep = Math.max(1, Math.round((tree - sapling) / 4));
+  return Math.min(17, 14 + Math.floor((points - tree) / finalStep));
 };
-const growthStageLabel = ['土壤萌芽', '兩葉芽', '四葉幼苗', '小樹苗', '完整樹冠'];
+const growthStageLabel = GROWTH_STAGE_LABELS;
 
 const QUOTA_HOLD_KEY = 'studentpoints_quota_hold';
 
@@ -3833,7 +3845,7 @@ function SettingsModal({ onClose, classId, teacherUid, currentEmail, currentBack
             <div className="space-y-4">
               <section className="rounded-lg border border-lime-200 bg-lime-50/60 p-3">
                 <h4 className="flex items-center gap-2 text-sm font-bold text-slate-800"><Sprout className="h-4 w-4 text-lime-700" /> 學生卡成長分數區間</h4>
-                <p className="mt-1 text-xs text-slate-600">正在設定：{selectedClassName || '未選擇班級'}。每一段以「下一階段開始的分數」決定，分數必須由小到大。</p>
+                <p className="mt-1 text-xs text-slate-600">正在設定：{selectedClassName || '未選擇班級'}。四個主要里程碑會自動細分為 18 個成長階段；分數必須由小到大。</p>
                 <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4">
                   {[
                     ['兩葉芽', 0],
@@ -3848,7 +3860,7 @@ function SettingsModal({ onClose, classId, teacherUid, currentEmail, currentBack
                 </div>
                 <p className="mt-3 rounded bg-white/65 px-2 py-1.5 text-xs text-slate-600">
                   <span className="font-bold text-slate-700">預覽：</span>
-                  0–{Math.max(0, Number(growthThresholds[0] || 10) - 1)} 分：土壤萌芽；{growthThresholds[0] || 10}–{Math.max(0, Number(growthThresholds[1] || 30) - 1)} 分：兩葉芽；{growthThresholds[1] || 30}–{Math.max(0, Number(growthThresholds[2] || 60) - 1)} 分：四葉幼苗；{growthThresholds[2] || 60}–{Math.max(0, Number(growthThresholds[3] || 100) - 1)} 分：小樹苗；{growthThresholds[3] || 100} 分以上：完整樹冠。
+                  0–{Math.max(0, Number(growthThresholds[0] || 10) - 1)} 分、{growthThresholds[0] || 10}–{Math.max(0, Number(growthThresholds[1] || 30) - 1)} 分、{growthThresholds[1] || 30}–{Math.max(0, Number(growthThresholds[2] || 60) - 1)} 分、{growthThresholds[2] || 60}–{Math.max(0, Number(growthThresholds[3] || 100) - 1)} 分各細分為四階；{growthThresholds[3] || 100} 分以上延續至第 18 階森林樹屋。
                 </p>
                 <button type="button" onClick={saveGrowthThresholdSettings} disabled={!selectedClassId || savingGrowthThresholds} className="mt-3 w-full rounded-lg bg-lime-700 py-2 text-sm font-bold text-white transition hover:bg-lime-800 disabled:cursor-not-allowed disabled:opacity-50">{savingGrowthThresholds ? '儲存中...' : '儲存成長分數區間'}</button>
               </section>
