@@ -710,9 +710,10 @@ function StudentReadOnlyCard({ student, growthThresholds }) {
     <article className="forest-student-card min-h-28 rounded-xl border p-2 shadow-sm" title={`${student.name}：${growthStageLabel[growthStage]}`}>
       <span className="forest-student-seat">{student.studentNumber || '#'}</span>
       <p className={`forest-student-name truncate ${isThreeCharacterName(student.name) ? 'forest-name-three' : ''}`}>{student.name}</p>
-      <div className={`forest-student-score ${availableScore < 0 ? 'forest-student-score-negative' : ''}`}>
-        <span className="forest-score-available">可用 {formatStudentCardPoints(availableScore)}</span>
-        <span className="forest-score-performance">累積 {formatStudentCardPoints(performanceScore)}</span>
+      <div className={`forest-student-score ${availableScore < 0 ? 'forest-student-score-negative' : ''}`} title={`可用 ${formatStudentCardPoints(availableScore)} / 累積 ${formatStudentCardPoints(performanceScore)}`}>
+        <span className="forest-score-available" aria-label={`可用 ${formatStudentCardPoints(availableScore)}`}>{formatStudentCardPoints(availableScore)}</span>
+        <span className="forest-score-divider" aria-hidden="true">/</span>
+        <span className="forest-score-performance" aria-label={`累積 ${formatStudentCardPoints(performanceScore)}`}>{formatStudentCardPoints(performanceScore)}</span>
       </div>
       <div className={`forest-growth-plant forest-growth-stage-${growthStage}`} aria-label={`成長階段：${growthStageLabel[growthStage]}`} title={`成長階段：${growthStageLabel[growthStage]}`}><span className="forest-growth-soil" /><span className="forest-growth-stem" /><span className="forest-growth-leaf forest-growth-leaf-left" /><span className="forest-growth-leaf forest-growth-leaf-right" /><span className="forest-growth-canopy" /></div>
     </article>
@@ -4183,10 +4184,11 @@ const CompactStudentCard = React.memo(function CompactStudentCard({ student, sel
   const activate = () => onSelect(student);
   return <div role="button" tabIndex={0} onClick={activate} onKeyDown={event => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); activate(); } }} className={`forest-student-card min-h-24 rounded-xl border p-2 cursor-pointer transition shadow-sm ${selected ? 'border-indigo-500 ring-2 ring-indigo-200 bg-indigo-50' : 'border-slate-200 bg-white hover:border-indigo-300 hover:shadow-md'}`} title="點選後開啟加扣分視窗">
     <span className="forest-student-seat" style={{ fontSize: `${0.75 * fontScale}rem` }}>{student.studentNumber || '#'}</span>
-    <button type="button" onClick={event => { event.stopPropagation(); onShowHistory(student); }} className={`forest-student-name truncate hover:underline focus:outline-none ${isThreeCharacterName(student.name) ? 'forest-name-three' : ''}`} style={{ fontSize: `${1.1 * fontScale}rem` }} title="查看加扣分紀錄">{student.name}</button>
-    <div className={`forest-student-score ${availableScore < 0 ? 'forest-student-score-negative' : ''}`} style={{ fontSize: `${0.92 * fontScale}rem` }}>
-      <span className="forest-score-available">可用 {formatStudentCardPoints(availableScore)}</span>
-      <span className="forest-score-performance">累積 {formatStudentCardPoints(performanceScore)}</span>
+    <button type="button" onClick={event => { event.stopPropagation(); onShowHistory(student); }} className={`forest-student-name truncate hover:underline focus:outline-none ${isThreeCharacterName(student.name) ? 'forest-name-three' : ''}`} style={{ fontSize: `clamp(${1.12 * fontScale}rem, ${16.8 * fontScale}cqi, ${1.44 * fontScale}rem)` }} title="查看加扣分紀錄">{student.name}</button>
+    <div className={`forest-student-score ${availableScore < 0 ? 'forest-student-score-negative' : ''}`} style={{ fontSize: `clamp(${0.92 * fontScale}rem, ${13.2 * fontScale}cqi, ${1.12 * fontScale}rem)` }} title={`可用 ${formatStudentCardPoints(availableScore)} / 累積 ${formatStudentCardPoints(performanceScore)}`}>
+      <span className="forest-score-available" aria-label={`可用 ${formatStudentCardPoints(availableScore)}`}>{formatStudentCardPoints(availableScore)}</span>
+      <span className="forest-score-divider" aria-hidden="true">/</span>
+      <span className="forest-score-performance" aria-label={`累積 ${formatStudentCardPoints(performanceScore)}`}>{formatStudentCardPoints(performanceScore)}</span>
     </div>
     <div className={`forest-growth-plant forest-growth-stage-${growthStage}`} aria-label={`成長階段：${growthStageLabel[growthStage]}`} title={`成長階段：${growthStageLabel[growthStage]}`}><span className="forest-growth-soil" /><span className="forest-growth-stem" /><span className="forest-growth-leaf forest-growth-leaf-left" /><span className="forest-growth-leaf forest-growth-leaf-right" /><span className="forest-growth-canopy" /></div>
   </div>;

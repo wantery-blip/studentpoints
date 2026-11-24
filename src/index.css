@@ -253,9 +253,15 @@ body {
 .forest-student-card {
   position: relative;
   display: grid;
-  grid-template-rows: 2.15rem 1.55rem minmax(0, 1fr);
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-rows: auto auto minmax(0, 1fr);
+  column-gap: 0;
+  row-gap: .16rem;
+  container-type: inline-size;
   aspect-ratio: 4 / 5;
+  min-width: 0;
   min-height: 0 !important;
+  padding: .45rem .42rem .35rem !important;
   isolation: isolate;
   overflow: hidden;
   border-color: #7f9d62 !important;
@@ -284,13 +290,16 @@ body {
 .forest-student-card [class*="text-indigo"],
 .forest-student-card [class*="text-emerald"] { color: var(--forest-moss) !important; }
 .forest-student-seat {
-  position: absolute;
+  position: relative;
   z-index: 2;
-  top: .48rem;
-  left: .5rem;
+  grid-column: 1 / 2;
+  grid-row: 1;
+  align-self: center;
+  justify-self: start;
   display: inline-flex;
-  width: 1.75rem;
-  height: 1.75rem;
+  flex-shrink: 0;
+  width: clamp(1.3rem, 20cqi, 1.65rem);
+  height: clamp(1.3rem, 20cqi, 1.65rem);
   align-items: center;
   justify-content: center;
   padding: 0;
@@ -298,7 +307,7 @@ body {
   border-radius: 999px;
   background: var(--forest-sage-pale);
   color: #35483b;
-  font-size: .75rem !important;
+  font-size: .72rem !important;
   font-weight: 800;
   line-height: 1;
   text-align: center;
@@ -306,38 +315,55 @@ body {
 .forest-student-name {
   position: relative;
   z-index: 2;
+  grid-column: 2 / 5;
   grid-row: 1;
-  align-self: end;
+  align-self: center;
+  justify-self: stretch;
   display: block;
   width: 100%;
-  padding: .12rem .35rem .16rem;
+  min-width: 0;
+  padding: .04rem 0;
   color: #35483b;
+  font-size: clamp(1.12rem, 16.8cqi, 1.44rem);
   font-weight: 800;
-  line-height: 1.35;
-  text-align: center;
+  line-height: 1.22;
+  text-align: left;
 }
 .forest-name-three {
   /* 補回末字後的字距，讓三字姓名仍在文字框的視覺中央。 */
   letter-spacing: .18em;
   padding-left: .18em !important;
 }
+.forest-student-card .forest-name-three {
+  letter-spacing: .04em;
+  padding-left: 0 !important;
+}
 .forest-student-score {
   position: relative;
   z-index: 2;
+  grid-column: 1 / -1;
   grid-row: 2;
   align-self: start;
   display: flex;
+  flex-wrap: wrap;
   align-items: baseline;
   justify-content: center;
-  gap: .38rem;
-  padding: .06rem .2rem 0;
+  column-gap: .24rem;
+  row-gap: .12rem;
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
+  padding: .06rem 0 0;
   color: #397144 !important;
+  font-size: clamp(.92rem, 13.2cqi, 1.12rem);
   font-weight: 800;
-  line-height: 1;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.15;
   text-align: center;
 }
 .forest-student-score > span {
-  display: block;
+  display: inline-block;
+  max-width: 100%;
   white-space: nowrap;
 }
 .forest-student-score > span + span {
@@ -345,17 +371,31 @@ body {
   font-size: inherit;
   opacity: .95;
 }
+.forest-score-available,
+.forest-score-performance {
+  min-width: 3ch;
+  text-align: center;
+}
+.forest-score-divider {
+  color: #9cb096;
+  font-size: .82em !important;
+  font-weight: 700;
+  opacity: .85 !important;
+}
 .forest-score-available { color: #a16207 !important; }
 .forest-score-performance { color: #397144 !important; }
 .forest-student-score-negative .forest-score-available { color: var(--forest-danger) !important; }
 .forest-growth-plant {
-  position: absolute;
+  position: relative;
   z-index: 1;
-  left: 50%;
-  bottom: -.4rem;
-  width: 120%;
-  height: 62%;
-  transform: translateX(-50%);
+  grid-column: 1 / -1;
+  grid-row: 3;
+  align-self: end;
+  justify-self: center;
+  width: 116%;
+  height: 162%;
+  min-height: 0;
+  transform: translateY(.22rem);
   pointer-events: none;
   background-position: center bottom;
   background-repeat: no-repeat;
