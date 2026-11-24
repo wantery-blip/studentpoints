@@ -253,21 +253,29 @@ body {
 .forest-student-card {
   position: relative;
   display: grid;
-  grid-template-rows: 2rem auto 1fr;
+  grid-template-rows: 2.15rem 1.55rem minmax(0, 1fr);
+  aspect-ratio: 4 / 5;
+  min-height: 0 !important;
+  isolation: isolate;
+  overflow: hidden;
   border-color: #7f9d62 !important;
   border-radius: 15px !important;
-  background-color: rgba(255,252,240,.28) !important;
-  background-image:
-    url('/forest-assets/student-card-leaves-top-right.png'),
-    url('/forest-assets/student-card-grass-bottom-left.png'),
-    url('/forest-assets/student-card-grass-bottom-right.png') !important;
-  background-position: right top, left bottom, right bottom !important;
-  background-repeat: no-repeat !important;
-  /* 素材本身帶有透明留白；放大背景盒後，實際枝葉約佔卡片五分之一。 */
-  background-size: 38% auto, 38% auto, 38% auto !important;
+  background: rgba(255,252,240,.72) !important;
   box-shadow: 0 3px 10px rgba(58,84,58,.06) !important;
 }
-.forest-student-card::before { display: none; }
+/* 背景植物退至角落，讓學生自己的成長樹成為卡片主角。 */
+.forest-student-card::before {
+  content: '';
+  position: absolute;
+  z-index: 0;
+  top: -.25rem;
+  right: -.25rem;
+  width: 3.65rem;
+  height: 3.65rem;
+  opacity: .42;
+  pointer-events: none;
+  background: url('/forest-assets/student-card-leaves-top-right.png') right top / contain no-repeat;
+}
 .forest-student-card[class*="ring-2"] {
   border-color: var(--forest-moss) !important;
   background: var(--forest-sage-pale) !important;
@@ -298,11 +306,11 @@ body {
 .forest-student-name {
   position: relative;
   z-index: 2;
-  grid-row: 2;
-  align-self: start;
+  grid-row: 1;
+  align-self: end;
   display: block;
   width: 100%;
-  padding: .12rem .35rem 0;
+  padding: .12rem .35rem .16rem;
   color: #35483b;
   font-weight: 800;
   line-height: 1.35;
@@ -316,9 +324,13 @@ body {
 .forest-student-score {
   position: relative;
   z-index: 2;
-  grid-row: 3;
-  align-self: end;
-  padding-bottom: 1.4rem;
+  grid-row: 2;
+  align-self: start;
+  display: flex;
+  align-items: baseline;
+  justify-content: center;
+  gap: .38rem;
+  padding: .06rem .2rem 0;
   color: #397144 !important;
   font-weight: 800;
   line-height: 1;
@@ -329,9 +341,9 @@ body {
   white-space: nowrap;
 }
 .forest-student-score > span + span {
-  margin-top: .2rem;
-  font-size: .8em;
-  opacity: .9;
+  margin-top: 0;
+  font-size: inherit;
+  opacity: .95;
 }
 .forest-score-available { color: #a16207 !important; }
 .forest-score-performance { color: #397144 !important; }
@@ -340,9 +352,9 @@ body {
   position: absolute;
   z-index: 1;
   left: 50%;
-  bottom: -.2rem;
-  width: 4.2rem;
-  height: 4.2rem;
+  bottom: -.4rem;
+  width: 120%;
+  height: 62%;
   transform: translateX(-50%);
   pointer-events: none;
   background-position: center bottom;
@@ -645,7 +657,7 @@ body {
   border-radius: 18px;
   background: rgba(239,228,194,.48);
 }
-.forest-student-grid .forest-student-card { min-height: 7.35rem; }
+.forest-student-grid .forest-student-card { min-height: 0 !important; }
 .forest-group-grid {
   padding: .95rem;
   border: 1px solid var(--forest-line);
