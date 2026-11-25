@@ -861,7 +861,7 @@
         </svg>
 
         <!-- 掉出的彩色扭蛋彈出層 -->
-        <div id="dropped-overlay" class="dropped-capsule-overlay">
+        <div id="dropped-overlay" class="dropped-capsule-overlay" role="button" tabindex="0" aria-label="點擊扭蛋打開驚喜">
           <svg id="big-capsule-svg" class="big-capsule" viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg">
             <defs>
               <clipPath id="capClip">
@@ -1798,18 +1798,43 @@
     }
 
     /**
-     * 4. 精準加權隨機抽卡演算法 (總權重 = 100)
+     * 4. 溫和防連抽加權隨機演算法
+     * 權重高的牌卡整體仍出現較多；上一張暫降為 18% 權重、上上張暫降為 50% 權重，
+     * 大幅降低連續重複的機率，同時保留極少數連中的驚喜感。
      */
+    const RECENT_PENALTY_PREV1 = 0.18;
+    const RECENT_PENALTY_PREV2 = 0.50;
+
     function drawWeightedCard() {
-      const totalWeight = CARDS_DATA.reduce((sum, c) => sum + c.weight, 0);
-      let rand = Math.random() * totalWeight;
-      for (const card of CARDS_DATA) {
-        if (rand < card.weight) {
-          return card;
+      const eligibleCards = CARDS_DATA.filter(card => Number(card.weight) > 0);
+      if (eligibleCards.length === 0) return CARDS_DATA[0];
+      if (eligibleCards.length === 1) return eligibleCards[0];
+
+      const prev1Id = drawHistory[0]?.id ?? null;
+      const prev2Id = drawHistory[1]?.id ?? null;
+
+      const weightedPool = eligibleCards.map(card => {
+        const baseWeight = Number(card.weight);
+        let factor = 1;
+        if (card.id === prev1Id) {
+          factor = RECENT_PENALTY_PREV1;
+        } else if (card.id === prev2Id) {
+          factor = RECENT_PENALTY_PREV2;
         }
-        rand -= card.weight;
+        return { card, effectiveWeight: baseWeight * factor };
+      });
+
+      const totalWeight = weightedPool.reduce((sum, item) => sum + item.effectiveWeight, 0);
+      if (totalWeight <= 0) return eligibleCards[0];
+
+      let rand = Math.random() * totalWeight;
+      for (const item of weightedPool) {
+        if (rand < item.effectiveWeight) {
+          return item.card;
+        }
+        rand -= item.effectiveWeight;
       }
-      return CARDS_DATA[0];
+      return eligibleCards[0];
     }
 
     /**
@@ -1909,9 +1934,10 @@
     }
 
     /**
-     * 7. 互動抽卡主流程
+     * 7. 互動抽卡主流程（轉出扭蛋後，需由學生親手點擊扭蛋才會揭曉牌卡）
      */
-    let autoOpenTimer = null;
+    let dropTimer = null;
+    let wobbleTimer = null;
 
     function startGachaSpin() {
       if (isSpinning) return;
@@ -1932,11 +1958,12 @@
       machineStage.classList.add('machine-shake');
       tumbleDomeBalls(750);
 
-      // 預先依權重抽出卡片
+      // 預先依溫和防連抽權重抽出卡片
       currentCard = drawWeightedCard();
 
-      // 0.75 秒後掉出彩色扭蛋
-      setTimeout(() => {
+      // 0.75 秒後掉出彩色扭蛋（稀有卡為金色、一般卡隨機彩色），等待學生點擊開啟
+      dropTimer = setTimeout(() => {
+        dropTimer = null;
         SoundFX.playDrop();
         const capColor = currentCard.tier === 'rare'
           ? '#FFD700'
@@ -1946,20 +1973,19 @@
         droppedOverlay.classList.add('active');
         bigCapsuleSvg.classList.remove('wobble');
         void bigCapsuleSvg.offsetWidth;
-        setTimeout(() => bigCapsuleSvg.classList.add('wobble'), 850);
-
-        // 若學生未手動點擊，1.6 秒後自動打開扭蛋（流暢且適合大屏操作）
-        autoOpenTimer = setTimeout(() => {
-          openDroppedCapsule();
-        }, 1600);
+        wobbleTimer = setTimeout(() => {
+          wobbleTimer = null;
+          bigCapsuleSvg.classList.add('wobble');
+        }, 850);
+        droppedOverlay.focus({ preventScroll: true });
       }, 750);
     }
 
     function openDroppedCapsule() {
       if (!droppedOverlay.classList.contains('active')) return;
-      if (autoOpenTimer) {
-        clearTimeout(autoOpenTimer);
-        autoOpenTimer = null;
+      if (wobbleTimer) {
+        clearTimeout(wobbleTimer);
+        wobbleTimer = null;
       }
 
       droppedOverlay.classList.remove('active');
@@ -2051,6 +2077,12 @@
     spinBtn.addEventListener('click', startGachaSpin);
     knobGroup.addEventListener('click', startGachaSpin);
     droppedOverlay.addEventListener('click', openDroppedCapsule);
+    droppedOverlay.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' || e.key === ' ') {
+        e.preventDefault();
+        openDroppedCapsule();
+      }
+    });
 
     muteBtn.addEventListener('click', () => {
       isMuted = !isMuted;
@@ -2070,6 +2102,11 @@
     });
 
     resetHistoryBtn.addEventListener('click', () => {
+      if (dropTimer) { clearTimeout(dropTimer); dropTimer = null; }
+      if (wobbleTimer) { clearTimeout(wobbleTimer); wobbleTimer = null; }
+      droppedOverlay.classList.remove('active');
+      isSpinning = false;
+      spinBtn.disabled = false;
       drawHistory = [];
       updateHistoryUI();
       cardInner.classList.remove('is-flipped');
