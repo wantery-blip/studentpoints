@@ -103,9 +103,10 @@ const appId = import.meta.env.VITE_DATA_NAMESPACE || 'default-app-id';
 const MAX_BATCH_WRITES = 450;
 // 僅保存使用者主動選擇記住的教師 Email；絕不保存密碼或 Firebase 憑證。
 const REMEMBERED_TEACHER_EMAIL_KEY = 'remembered_teacher_email';
-const AUTO_LOGOUT_MINUTES_OPTIONS = [15, 20, 30, 40, 60] as const;
-const DEFAULT_AUTO_LOGOUT_MINUTES = 30;
+const AUTO_LOGOUT_MINUTES_OPTIONS = [5, 15, 20, 30, 40, 60] as const;
+const DEFAULT_AUTO_LOGOUT_MINUTES = 5;
 const normalizeAutoLogoutMinutes = (value) => {
+  if (value === null || value === undefined || value === '') return DEFAULT_AUTO_LOGOUT_MINUTES;
   const minutes = Number(value);
   return minutes === 0 || AUTO_LOGOUT_MINUTES_OPTIONS.includes(minutes as typeof AUTO_LOGOUT_MINUTES_OPTIONS[number])
     ? minutes

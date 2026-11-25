@@ -73,6 +73,9 @@ test('累積表現必須是數字，且新建學生須同時保存兩種分數',
 test('教師可設定允許的自動登出時間，但不可寫入任意分鐘數', async () => {
   const db = teacherDb('teacher-a');
   await assertSucceeds(updateDoc(doc(db, path('teachers', 'teacher-a')), {
+    autoLogoutMinutes: 5, updatedAt: new Date()
+  }));
+  await assertSucceeds(updateDoc(doc(db, path('teachers', 'teacher-a')), {
     autoLogoutMinutes: 20, updatedAt: new Date()
   }));
   await assertFails(updateDoc(doc(db, path('teachers', 'teacher-a')), {
