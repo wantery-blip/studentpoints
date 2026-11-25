@@ -186,13 +186,37 @@ const resolveActionPresets = (storedPresets) => {
   return [...defaults, ...storedPresets.filter(preset => !preset.presetKey)];
 };
 
-const DEFAULT_GROWTH_THRESHOLDS = [120, 280, 480, 780];
+const DEFAULT_GROWTH_STAGE_STEPS = [30, 40, 50, 60];
+const GROWTH_STAGE_SEGMENTS = [
+  { firstStage: 0, stageCount: 4 },
+  { firstStage: 4, stageCount: 4 },
+  { firstStage: 8, stageCount: 4 },
+  { firstStage: 12, stageCount: 5 },
+];
+const growthThresholdsFromSteps = (steps: Array<number | string>) => {
+  let total = 0;
+  return GROWTH_STAGE_SEGMENTS.map(({ stageCount }, index) => {
+    const parsed = Number(steps?.[index]);
+    const safeStep = Number.isInteger(parsed) && parsed > 0 ? parsed : DEFAULT_GROWTH_STAGE_STEPS[index];
+    total += safeStep * stageCount;
+    return total;
+  });
+};
+const DEFAULT_GROWTH_THRESHOLDS = growthThresholdsFromSteps(DEFAULT_GROWTH_STAGE_STEPS);
 const normalizeGrowthThresholds = (value) => {
   if (!Array.isArray(value) || value.length !== 4) return DEFAULT_GROWTH_THRESHOLDS;
   const thresholds = value.map(Number);
   return thresholds.every((threshold, index) => Number.isInteger(threshold) && threshold > 0 && (index === 0 || threshold > thresholds[index - 1]))
     ? thresholds
     : DEFAULT_GROWTH_THRESHOLDS;
+};
+const growthStepsFromThresholds = (configuredThresholds = DEFAULT_GROWTH_THRESHOLDS) => {
+  const thresholds = normalizeGrowthThresholds(configuredThresholds);
+  return GROWTH_STAGE_SEGMENTS.map(({ stageCount }, index) => {
+    const prev = index === 0 ? 0 : thresholds[index - 1];
+    const span = Math.max(1, thresholds[index] - prev);
+    return Math.max(1, Math.round(span / stageCount));
+  });
 };
 
 const groupContribution = (student, groupPoints, divisor, includeInPersonalTotal = true) => {
@@ -239,12 +263,6 @@ const timestampToMillis = (value: any) => {
   const parsed = Date.parse(String(value));
   return Number.isFinite(parsed) ? parsed : Number.POSITIVE_INFINITY;
 };
-const GROWTH_STAGE_SEGMENTS = [
-  { firstStage: 0, stageCount: 4 },
-  { firstStage: 4, stageCount: 4 },
-  { firstStage: 8, stageCount: 4 },
-  { firstStage: 12, stageCount: 5 },
-];
 const growthStageMilestonesFor = (configuredThresholds = DEFAULT_GROWTH_THRESHOLDS) => {
   const [phase2, phase3, phase4, maxStage] = normalizeGrowthThresholds(configuredThresholds);
   const bounds = [0, phase2, phase3, phase4, maxStage];
@@ -3668,7 +3686,7 @@ function SettingsModal({ onClose, classId, teacherUid, currentEmail, currentBack
   const [editingTotalGroups, setEditingTotalGroups] = useState('6');
   const [editingGroupPointDivisor, setEditingGroupPointDivisor] = useState('1');
   const [editingIncludeGroupPoints, setEditingIncludeGroupPoints] = useState(true);
-  const [growthThresholds, setGrowthThresholds] = useState(DEFAULT_GROWTH_THRESHOLDS);
+  const [growthStageSteps, setGrowthStageSteps] = useState<string[]>(() => DEFAULT_GROWTH_STAGE_STEPS.map(String));
   const [savingGrowthThresholds, setSavingGrowthThresholds] = useState(false);
   const [oldPassword, setOldPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
@@ -3691,7 +3709,7 @@ function SettingsModal({ onClose, classId, teacherUid, currentEmail, currentBack
 
   useEffect(() => {
     const selectedClass = classes.find(item => item.id === selectedClassId);
-    setGrowthThresholds(normalizeGrowthThresholds(selectedClass?.growthThresholds));
+    setGrowthStageSteps(growthStepsFromThresholds(selectedClass?.growthThresholds).map(String));
   }, [classes, selectedClassId]);
 
   useEffect(() => {
@@ -3833,18 +3851,19 @@ function SettingsModal({ onClose, classId, teacherUid, currentEmail, currentBack
 
   const saveGrowthThresholdSettings = async () => {
     if (!selectedClassId) { notify('請先在主畫面選擇要設定的班級。', 'error'); return; }
-    const nextThresholds = growthThresholds.map(value => Number(value));
-    const valid = nextThresholds.length === 4 && nextThresholds.every((value, index) =>
-      Number.isInteger(value) && value > 0 && value <= 100000 && (index === 0 || value > nextThresholds[index - 1])
+    const nextSteps = growthStageSteps.map(value => Number(value));
+    const valid = nextSteps.length === 4 && nextSteps.every(value =>
+      Number.isInteger(value) && value >= 1 && value <= 5000
     );
     if (!valid) {
-      notify('請填入由小到大的正整數門檻（例如 120、280、480、780）。', 'error');
+      notify('請為四個區段填入 1–5000 的正整數每階分數（預設 30、40、50、60）。', 'error');
       return;
     }
+    const nextThresholds = growthThresholdsFromSteps(nextSteps);
     setSavingGrowthThresholds(true);
     try {
       await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'classes', selectedClassId), { growthThresholds: nextThresholds });
-      notify('學生卡成長分數區間已儲存。');
+      notify('學生卡成長分數區間已儲存，學生查分與成長圖鑑將同步更新。');
     } catch (saveError) {
       console.error('儲存成長分數區間失敗', saveError);
       if (reportQuotaError(saveError)) return;
@@ -4140,21 +4159,32 @@ function SettingsModal({ onClose, classId, teacherUid, currentEmail, currentBack
             <div className="space-y-4">
               <section className="rounded-lg border border-lime-200 bg-lime-50/60 p-3">
                 <h4 className="flex items-center gap-2 text-sm font-bold text-slate-800"><Sprout className="h-4 w-4 text-lime-700" /> 學生卡成長分數區間</h4>
-                <p className="mt-1 text-xs text-slate-600">正在設定：{selectedClassName || '未選擇班級'}。四個主要里程碑會自動細分為 18 個成長階段（預設每階 +30 / +40 / +50 / +60，滿級 780 分）；分數必須由小到大。</p>
+                <p className="mt-1 text-xs text-slate-600">正在設定：{selectedClassName || '未選擇班級'}。直接設定四大區段「每階增加分數」（預設 30、40、50、60），系統會自動依各區段階數推算 18 階門檻，並即時同步到學生查分與成長圖鑑。</p>
                 <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4">
                   {[
-                    ['第 5 階下限（成樹期）', 0],
-                    ['第 9 階下限（生態期）', 1],
-                    ['第 13 階下限（奇幻期）', 2],
-                    ['第 18 階滿級（樹屋）', 3],
-                  ].map(([label, index]) => (
-                    <label key={String(label)} className="text-xs font-medium text-slate-600">{label}
-                      <input type="number" min="1" max="100000" step="1" value={growthThresholds[Number(index)] ?? ''} onChange={(event) => setGrowthThresholds(current => current.map((value, itemIndex) => itemIndex === Number(index) ? Number(event.target.value) : value))} className="mt-1 w-full rounded border border-lime-200 bg-white/85 px-2 py-1.5 text-sm font-bold text-slate-800" />
+                    ['第 1 區段（1–4 階）', '每階分（共 4 階）', 0],
+                    ['第 2 區段（5–8 階）', '每階分（共 4 階）', 1],
+                    ['第 3 區段（9–12 階）', '每階分（共 4 階）', 2],
+                    ['第 4 區段（13–17 階）', '每階分（共 5 階）', 3],
+                  ].map(([label, hint, index]) => (
+                    <label key={String(label)} className="text-xs font-medium text-slate-600">
+                      <span className="block font-bold text-slate-700">{label}</span>
+                      <span className="block text-[11px] text-slate-500">{hint}</span>
+                      <input type="number" min="1" max="5000" step="1" value={growthStageSteps[Number(index)] ?? ''} onChange={(event) => setGrowthStageSteps(current => current.map((value, itemIndex) => itemIndex === Number(index) ? event.target.value : value))} className="mt-1 w-full rounded border border-lime-200 bg-white/85 px-2 py-1.5 text-sm font-bold text-slate-800" />
                     </label>
                   ))}
                 </div>
                 {(() => {
-                  const previewMilestones = growthStageMilestonesFor(growthThresholds);
+                  const parsedSteps = growthStageSteps.map(value => Number(value));
+                  const stepsValid = parsedSteps.length === 4 && parsedSteps.every(value => Number.isInteger(value) && value >= 1 && value <= 5000);
+                  if (!stepsValid) {
+                    return (
+                      <p className="mt-3 rounded bg-amber-50 px-2 py-1.5 text-xs font-medium text-amber-800">
+                        請為四個區段輸入 1–5000 的正整數每階分數，以預覽 18 階門檻。
+                      </p>
+                    );
+                  }
+                  const previewMilestones = growthStageMilestonesFor(growthThresholdsFromSteps(parsedSteps));
                   return (
                     <p className="mt-3 rounded bg-white/65 px-2 py-1.5 text-xs leading-relaxed text-slate-600">
                       <span className="font-bold text-slate-700">18 階門檻預覽：</span>
@@ -4163,7 +4193,7 @@ function SettingsModal({ onClose, classId, teacherUid, currentEmail, currentBack
                   );
                 })()}
                 <div className="mt-3 flex gap-2">
-                  <button type="button" onClick={() => setGrowthThresholds(DEFAULT_GROWTH_THRESHOLDS)} disabled={savingGrowthThresholds} className="rounded-lg border border-lime-300 bg-white px-3 py-2 text-xs font-bold text-lime-800 transition hover:bg-lime-100 disabled:cursor-not-allowed disabled:opacity-50">套用預設</button>
+                  <button type="button" onClick={() => setGrowthStageSteps(DEFAULT_GROWTH_STAGE_STEPS.map(String))} disabled={savingGrowthThresholds} className="rounded-lg border border-lime-300 bg-white px-3 py-2 text-xs font-bold text-lime-800 transition hover:bg-lime-100 disabled:cursor-not-allowed disabled:opacity-50">套用預設（30/40/50/60）</button>
                   <button type="button" onClick={saveGrowthThresholdSettings} disabled={!selectedClassId || savingGrowthThresholds} className="flex-1 rounded-lg bg-lime-700 py-2 text-sm font-bold text-white transition hover:bg-lime-800 disabled:cursor-not-allowed disabled:opacity-50">{savingGrowthThresholds ? '儲存中...' : '儲存成長分數區間'}</button>
                 </div>
               </section>
