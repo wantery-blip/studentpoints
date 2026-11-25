@@ -130,7 +130,7 @@ flowchart TD
 - **網格排列**：`grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-4`，圓角 `1rem`（`rounded-2xl`），圖框比例 `aspect-ratio: 4 / 3.3`。
 - **動態門檻同步**：每張圖鑑卡的解鎖分數與頂部進度條均由 `growthStageMilestonesFor(growthThresholds)` 即時推算，與教師端四大區段每階設定即時聯動。
 - **四種視覺狀態**（定義於 `src/index.css`）：
-  1. **已解鎖一般卡**（`.forest-codex-unlocked`）：奶油紙漸層底、淺綠邊框 `#b7cea9`，顯示彩圖、階段名稱、首位解鎖者與解鎖人數。
+  1. **已解鎖一般卡**（`.forest-codex-unlocked`）：奶油紙漸層底、淺綠邊框 `#b7cea9`，顯示彩圖、階段名稱、前五位解鎖座號徽章與解鎖人數。
   2. **已解鎖最終滿級卡**（`.forest-codex-final`）：暖金漸層底、金邊 `#d6b15c` 與金色微光陰影。
   3. **1–12 階未解鎖剪影卡**（`.forest-codex-silhouette`）：虛線邊框 `#c2d1ba`、淡霧綠底，圖片套用 CSS 剪影濾鏡（`.forest-codex-tree-silhouette`）＋中央圓形 `?` 徽章（`.forest-codex-question-badge`）。
   4. **13–18 階神秘種子封印卡**（`.forest-codex-sealed` / `.forest-codex-sealed-final`）：深森夜空漸層底（`#1b3629`～`#242642`）、金邊、發光光暈＋SVG 神秘種子＋`?`。

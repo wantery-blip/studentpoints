@@ -817,7 +817,7 @@ function StudentGrowthCodex({ classNameLabel, students, growthThresholds, onBack
         minPoints,
         unlocked,
         unlockedCount: unlockedStudents.length,
-        firstUnlocker: unlockedStudents[0] || null,
+        topUnlockers: unlockedStudents.slice(0, 5),
         isSealedTier: index >= GROWTH_SEALED_START_INDEX,
         isFinalStage: index === GROWTH_STAGE_LABELS.length - 1,
       };
@@ -913,18 +913,28 @@ function StudentGrowthCodex({ classNameLabel, students, growthThresholds, onBack
                             {entry.name}
                           </h3>
 
-                          <div className="mt-2 space-y-1 rounded-xl border border-emerald-200/70 bg-white/75 px-2.5 py-2 text-xs">
-                            <div className="flex items-center justify-between gap-1 text-amber-800 font-bold">
+                          <div className="mt-2 space-y-1.5 rounded-xl border border-emerald-200/70 bg-white/75 px-2.5 py-2 text-xs">
+                            <div className="space-y-1 text-amber-800 font-bold">
                               <span className="inline-flex shrink-0 items-center gap-1 text-amber-700">
-                                <Crown className="w-3.5 h-3.5" /> 首位解鎖者
+                                <Crown className="w-3.5 h-3.5" /> 前五位解鎖
                               </span>
-                              <span className="truncate text-right text-slate-800">{entry.firstUnlocker?.name || '—'}</span>
+                              <div className="flex flex-wrap items-center gap-1" aria-label={`前五位解鎖座號：${entry.topUnlockers.map(student => student.studentNumber || '#').join('、') || '無'}`}>
+                                {entry.topUnlockers.length > 0 ? entry.topUnlockers.map((student, rankIndex) => (
+                                  <span
+                                    key={student.id || `${entry.stageNumber}-${rankIndex}`}
+                                    className="inline-flex min-w-[1.5rem] items-center justify-center rounded-full border border-amber-200/90 bg-amber-50/90 px-1.5 py-0.5 text-[11px] font-black leading-none text-amber-900 tabular-nums"
+                                    title={`第 ${rankIndex + 1} 位：${student.studentNumber || '#'} 號 ${student.name || ''}`}
+                                  >
+                                    {student.studentNumber || '#'}
+                                  </span>
+                                )) : <span className="text-slate-400">—</span>}
+                              </div>
                             </div>
-                            <div className="flex items-center justify-between gap-1 text-emerald-800 font-semibold">
+                            <div className="flex items-center gap-6 text-emerald-800 font-semibold">
                               <span className="inline-flex items-center gap-1 text-emerald-700">
                                 <Users className="w-3.5 h-3.5" /> 已解鎖人數
                               </span>
-                              <span>{entry.unlockedCount} 人</span>
+                              <span className="tabular-nums">{entry.unlockedCount} 人</span>
                             </div>
                           </div>
                         </article>
